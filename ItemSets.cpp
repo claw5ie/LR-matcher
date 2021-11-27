@@ -2,7 +2,7 @@
 
 bool is_variable(int symbol)
 {
-  return symbol < 0;
+  return symbol >= MIN_VAR_INDEX;
 }
 
 int symbol_at_dot(Item const &item)
@@ -116,8 +116,7 @@ ParsingTable find_item_sets(Grammar const &grammar)
 
     for (auto it = item_set.begin(); it != item_set.end(); )
     {
-      int const symbol = symbol_at_dot(*it);
-      if (symbol == 0)
+      if (symbol_at_dot(*it) == 0)
       {
         auto &actions = table[i].second;
         while (it != item_set.end() && symbol_at_dot(*it) == 0)

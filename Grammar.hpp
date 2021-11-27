@@ -5,7 +5,7 @@
 #include <set>
 #include <string>
 
-#define MIN_VAR_INDEX (-65536)
+#define MIN_VAR_INDEX 256
 
 using Rule = std::vector<int>;
 using Grammar = std::set<Rule>;

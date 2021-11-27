@@ -22,7 +22,7 @@ int main(int argc, char **argv)
 
       for (size_t i = 1; i + 1 < rule.size(); i++)
       {
-        if (rule[i] < 0)
+        if (rule[i] >= MIN_VAR_INDEX)
           std::cout << lookup[rule[i] - MIN_VAR_INDEX];
         else
           std::cout << (char)rule[i];
@@ -80,7 +80,7 @@ int main(int argc, char **argv)
 
         if (val == 0)
           std::cout << '\n';
-        else if (val < 0)
+        else if (val >= MIN_VAR_INDEX)
           std::cout << grammar.second[val - MIN_VAR_INDEX];
         else
           std::cout << (char)val;
