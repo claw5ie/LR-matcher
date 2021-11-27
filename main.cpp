@@ -14,26 +14,31 @@ int main(int argc, char **argv)
 
   char const *str = argv[1];
   auto grammar = parse_grammar(str);
-  grammar.insert({ -65536, -65535, 0 });
 
   auto const print_rule =
-    [](Rule const &rule) -> void
+    [](Rule const &rule, std::vector<std::string> const &lookup) -> void
     {
-      for (size_t i = 0; i < rule.size(); i++)
-        std::cout << rule[i] << (i + 1 < rule.size() ? " " : "");
+      std::cout << lookup[rule[0] - MIN_VAR_INDEX] << " : ";
+
+      for (size_t i = 1; i + 1 < rule.size(); i++)
+      {
+        if (rule[i] < 0)
+          std::cout << lookup[rule[i] - MIN_VAR_INDEX];
+        else
+          std::cout << (char)rule[i];
+      }
     };
 
-  puts("Grammar:");
-  for (auto const &elem : grammar)
+  std::cout << "Grammar:\n";
+  for (auto const &elem : grammar.first)
   {
-    print_rule(elem);
-
-    std::cout << std::endl;
+    std::cout << "  ";
+    print_rule(elem, grammar.second);
+    std::cout << '\n';
   }
+  std::cout << '\n';
 
-  std::cout << std::endl;
-
-  auto item_sets = find_item_sets(grammar);
+  auto item_sets = find_item_sets(grammar.first);
 
   for (size_t i = 0; i < item_sets.size(); i++)
   {
@@ -44,14 +49,16 @@ int main(int argc, char **argv)
       {
       case Action::Reduce:
         std::cout << "r(";
-        print_rule(*trans.reduce_to);
+        print_rule(*trans.reduce_to, grammar.second);
         std::cout << ")";
         break;
       case Action::Shift:
-        std::cout << trans.source << " -> s" << trans.destination;
+        std::cout << '\'' << (char)trans.source
+                  << "\' -> s" << trans.destination;
         break;
       case Action::Goto:
-        std::cout << trans.source << " -> g" << trans.destination;
+        std::cout << grammar.second[trans.source - MIN_VAR_INDEX]
+                  << " -> g" << trans.destination;
         break;
       }
 
@@ -62,12 +69,21 @@ int main(int argc, char **argv)
 
     for (auto const &item : item_sets[i].first)
     {
-      for (size_t i = 0, end = item.first->size(); i < end; i++)
+      std::cout << grammar.second[(*item.first)[0] - MIN_VAR_INDEX] << " : ";
+
+      for (size_t i = 1, end = item.first->size(); i < end; i++)
       {
         if (i == item.second)
-          fputs(". ", stdout);
+          std::cout << (i == 1 ? ". " : " . ");
 
-        std::cout << (*item.first)[i] << (i + 1 < end ? ' ' : '\n');
+        int const val = (*item.first)[i];
+
+        if (val == 0)
+          std::cout << '\n';
+        else if (val < 0)
+          std::cout << grammar.second[val - MIN_VAR_INDEX];
+        else
+          std::cout << (char)val;
       }
     }
 

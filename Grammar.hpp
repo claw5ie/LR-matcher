@@ -3,10 +3,13 @@
 
 #include <vector>
 #include <set>
+#include <string>
+
+#define MIN_VAR_INDEX (-65536)
 
 using Rule = std::vector<int>;
 using Grammar = std::set<Rule>;
 
-Grammar parse_grammar(char const *str);
+std::pair<Grammar, std::vector<std::string>> parse_grammar(char const *str);
 
 #endif // GRAMMAR_HPP

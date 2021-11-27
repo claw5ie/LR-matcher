@@ -153,14 +153,14 @@ bool TokenIsLess::operator()(Token const &left, Token const &right) const
   return lend < rend;
 }
 
-Grammar parse_grammar(char const *str)
+std::pair<Grammar, std::vector<std::string>> parse_grammar(char const *str)
 {
   std::vector<Token> tokens; tokens.reserve(128);
   std::map<Token, int, TokenIsLess> vars_to_int;
 
   Token next = next_token(&str);
 
-  for (int var_index = -65535; next.type != Token::Eof; )
+  for (int var_index = MIN_VAR_INDEX + 1; next.type != Token::Eof; )
   {
     if (next.type == Token::Colon)
     {
@@ -282,5 +282,17 @@ Grammar parse_grammar(char const *str)
     }
   }
 
-  return grammar;
+  std::vector<std::string> vars_lookup;
+  vars_lookup.resize(vars_to_int.size() + 1);
+
+  for (auto const &tok : vars_to_int)
+  {
+    vars_lookup[tok.second - MIN_VAR_INDEX] =
+      std::string(tok.first.begin, tok.first.end);
+  }
+
+  grammar.insert({ MIN_VAR_INDEX, MIN_VAR_INDEX + 1, 0 });
+  vars_lookup[0] = "start";
+
+  return { grammar, vars_lookup };
 }
