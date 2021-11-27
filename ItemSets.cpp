@@ -104,58 +104,57 @@ ParsingTable find_item_sets(Grammar const &grammar)
   if (grammar.empty())
     return { };
 
-  std::vector<ItemSet> item_sets; item_sets.reserve(32);
-  // Warning: access out of bound if there are more than 64 states
-  std::vector<std::list<Action>> table; table.resize(64);
+  ParsingTable table; table.reserve(32);
 
-  item_sets.emplace_back(ItemSet{ { &(*grammar.begin()), 1 } });
+  table.push_back({ { { &(*grammar.begin()), 1 } }, { } });
 
-  closure(grammar, item_sets[0]);
+  closure(grammar, table[0].first);
 
-  for (size_t i = 0; i < item_sets.size(); i++)
+  for (size_t i = 0; i < table.size(); i++)
   {
-    auto &curr_set = item_sets[i];
+    auto &item_set = table[i].first;
 
-    for (auto it = curr_set.begin(); it != curr_set.end(); )
+    for (auto it = item_set.begin(); it != item_set.end(); )
     {
       int const symbol = symbol_at_dot(*it);
       if (symbol == 0)
       {
-        while (it != curr_set.end() && symbol_at_dot(*it) == 0)
+        auto &actions = table[i].second;
+        while (it != item_set.end() && symbol_at_dot(*it) == 0)
         {
-          table[i].push_back({ Action::Reduce, 0, 0, it->first });
+          actions.push_back({ Action::Reduce, 0, 0, it->first });
 
           it++;
         }
       }
 
-      while (it != curr_set.end())
+      while (it != item_set.end())
       {
         int const shift_symbol = symbol_at_dot(*it);
 
-        item_sets.emplace_back(ItemSet{ });
+        table.push_back({ { }, { } });
 
-        while (it != curr_set.end() && symbol_at_dot(*it) == shift_symbol)
+        while (it != item_set.end() && symbol_at_dot(*it) == shift_symbol)
         {
-          item_sets.back().insert(shift_dot(*it));
+          table.back().first.insert(shift_dot(*it));
 
           it++;
         }
 
-        closure(grammar, item_sets.back());
+        closure(grammar, table.back().first);
 
-        int where_to_transition = item_sets.size() - 1;
-        for (size_t j = 0; j + 1 < item_sets.size(); j++)
+        int where_to_transition = table.size() - 1;
+        for (size_t j = 0; j + 1 < table.size(); j++)
         {
-          if (are_item_sets_equal(item_sets[j], item_sets.back()))
+          if (are_item_sets_equal(table[j].first, table.back().first))
           {
-            item_sets.pop_back();
+            table.pop_back();
             where_to_transition = j;
             break;
           }
         }
 
-        table[i].push_back({
+        table[i].second.push_back({
             is_variable(shift_symbol) ? Action::Goto : Action::Shift,
             shift_symbol,
             where_to_transition,
@@ -165,5 +164,5 @@ ParsingTable find_item_sets(Grammar const &grammar)
     }
   }
 
-  return { item_sets, table };
+  return table;
 }

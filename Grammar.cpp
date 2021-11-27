@@ -1,9 +1,8 @@
-#include "Grammar.hpp"
-
 #include <map>
 #include <cstdio>
 #include <cstdlib>
 #include <cctype>
+#include "Grammar.hpp"
 
 struct Token
 {

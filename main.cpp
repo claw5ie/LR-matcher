@@ -1,4 +1,5 @@
 #include <iostream>
+
 #include "Grammar.hpp"
 #include "ItemSets.hpp"
 
@@ -32,12 +33,12 @@ int main(int argc, char **argv)
 
   std::cout << std::endl;
 
-  auto res = find_item_sets(grammar);
+  auto item_sets = find_item_sets(grammar);
 
-  for (size_t i = 0; i < res.first.size(); i++)
+  for (size_t i = 0; i < item_sets.size(); i++)
   {
     std::cout << "State " << i << ":\n  ";
-    for (auto const &trans : res.second[i])
+    for (auto const &trans : item_sets[i].second)
     {
       switch (trans.action)
       {
@@ -59,7 +60,7 @@ int main(int argc, char **argv)
 
     std::cout << std::endl;
 
-    for (auto const &item : res.first[i])
+    for (auto const &item : item_sets[i].first)
     {
       for (size_t i = 0, end = item.first->size(); i < end; i++)
       {

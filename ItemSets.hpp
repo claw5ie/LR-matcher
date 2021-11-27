@@ -5,14 +5,18 @@
 #include <cstddef>
 #include "Grammar.hpp"
 
+struct ItemIsLess;
+struct Action;
+
 using Item = std::pair<Rule const *, size_t>;
+using ItemSet = std::set<Item, ItemIsLess>;
+using ParsingTable =
+  std::vector<std::pair<ItemSet, std::list<Action>>>;
 
 struct ItemIsLess
 {
   bool operator()(Item const &, Item const &) const;
 };
-
-using ItemSet = std::set<Item, ItemIsLess>;
 
 struct Action
 {
@@ -27,9 +31,6 @@ struct Action
     destination;
   Rule const *reduce_to;
 };
-
-using ParsingTable =
-  std::pair<std::vector<ItemSet>, std::vector<std::list<Action>>>;
 
 ParsingTable find_item_sets(Grammar const &grammar);
 
