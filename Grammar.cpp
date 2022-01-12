@@ -105,19 +105,31 @@ Token next_token(char const **str)
   {
     char const *const start = *str;
 
-    auto const is_keyword =
+    auto const is_reserved =
       [](char ch) -> bool
       {
-        return ch == ';' || ch == ':' || ch == '|';
+        return ch == ';' || ch == ':' || ch == '|' || ch == '\\' || ch == ' ';
       };
 
     while (
-      isprint(**str) &&
-      !isupper(**str) &&
-      !isspace(**str) &&
-      !is_keyword(**str)
+      (isprint(**str) &&
+        !isupper(**str) &&
+        !is_reserved(**str)) ||
+      **str == '\\'
       )
     {
+      if (**str == '\\')
+      {
+        char const next = *(*str + 1);
+        if (!is_reserved(next) && !isupper(next))
+        {
+          fputs("error: invalid escape sequence.\n", stderr);
+          exit(EXIT_FAILURE);
+        }
+
+        (*str)++;
+      }
+
       (*str)++;
     }
 
@@ -215,7 +227,12 @@ std::pair<Grammar, std::vector<std::string>> parse_grammar(char const *str)
         else
         {
           for (char const *beg = token.begin; beg < token.end; beg++)
-            rule.push_back(*beg);
+          {
+            if (*beg == '\\')
+              rule.push_back(*(++beg));
+            else
+              rule.push_back(*beg);
+          }
         }
 
         i++;
