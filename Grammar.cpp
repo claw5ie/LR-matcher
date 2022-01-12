@@ -186,84 +186,44 @@ std::pair<Grammar, std::vector<std::string>> parse_grammar(char const *str)
     auto const index = vars_to_int.find(tokens[i]);
     tokens[++i].expect(Token::Colon);
 
-    // Don't check that "index" is valid, because it is guaranteed to be
-    // in the map.
-
-    auto const find_last_non_terminal =
-      [](std::vector<Token> const &toks, size_t start) -> std::pair<size_t, size_t>
-      {
-        size_t size_of_the_rule = 0,
-          i = start;
-
-        while (i < toks.size())
-        {
-          switch (toks[i].type)
-          {
-          case Token::Variable:
-            size_of_the_rule += 1;
-            break;
-          case Token::TerminalSequence:
-            size_of_the_rule += toks[i].end - toks[i].begin;
-            break;
-          default:
-            return { i, size_of_the_rule };
-          }
-
-          i++;
-        }
-
-        return { i, size_of_the_rule };
-      };
-
     do
     {
       i++;
-      auto res = find_last_non_terminal(tokens, i);
 
-      if (res.first == i)
-      {
-        grammar.insert({ index->second, 0 });
-      }
-      else
-      {
-        std::vector<int> rule; rule.reserve(res.second + 1 + 1);
-        rule.push_back(index->second);
+      std::vector<int> rule; rule.reserve(32);
+      rule.push_back(index->second);
 
-        while (i < res.first)
+      while (
+        tokens[i].type == Token::Variable ||
+        tokens[i].type == Token::TerminalSequence
+        )
+      {
+        auto &token = tokens[i];
+
+        if (token.type == Token::Variable)
         {
-          auto const &tok = tokens[i];
-          switch (tok.type)
-          {
-          case Token::Variable:
-          {
-            auto other_index = vars_to_int.find(tok);
+          auto const it = vars_to_int.find(token);
 
-            if (other_index == vars_to_int.end())
-            {
-              fputs("error: unrecognized variable.\n", stderr);
-
-              exit(EXIT_FAILURE);
-            }
-
-            rule.push_back(other_index->second);
-            break;
-          }
-          case Token::TerminalSequence:
+          if (it == vars_to_int.end())
           {
-            for (char const *beg = tok.begin; beg < tok.end; beg++)
-              rule.push_back(*beg);
-            break;
-          }
-          default:
-            ; // Don't do anything to avoid annoying warning.
+            fputs("error: unrecognized variable.\n", stderr);
+            exit(EXIT_FAILURE);
           }
 
-          i++;
+          rule.push_back(it->second);
+        }
+        else
+        {
+          for (char const *beg = token.begin; beg < token.end; beg++)
+            rule.push_back(*beg);
         }
 
-        rule.push_back(0);
-        grammar.insert(std::move(rule));
+        i++;
       }
+
+      rule.push_back(0);
+      grammar.insert(std::move(rule));
+
     } while (tokens[i].type == Token::Bar);
 
     switch (tokens[i].type)
@@ -271,7 +231,6 @@ std::pair<Grammar, std::vector<std::string>> parse_grammar(char const *str)
     case Token::Semicolon:
     case Token::Eof:
       break;
-
     default:
       fputs(
         "error: expected semicolon or end-of-file to end the productions.\n",

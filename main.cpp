@@ -12,8 +12,7 @@ int main(int argc, char **argv)
     return EXIT_FAILURE;
   }
 
-  char const *str = argv[1];
-  auto grammar = parse_grammar(str);
+  auto grammar = parse_grammar(argv[1]);
 
   auto const print_rule =
     [](Rule const &rule, std::vector<std::string> const &lookup) -> void
