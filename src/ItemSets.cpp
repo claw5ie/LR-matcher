@@ -18,13 +18,9 @@ bool ItemIsLess::operator()(Item const &left, Item const &right) const
   if (sym_left == sym_right)
   {
     if (left.second == right.second)
-    {
       return left.first < right.first;
-    }
     else
-    {
       return left.second < right.second;
-    }
   }
   else
   {
@@ -34,7 +30,8 @@ bool ItemIsLess::operator()(Item const &left, Item const &right) const
 
 void closure(Grammar const &grammar, ItemSet &item_set)
 {
-  std::vector<int> to_visit; to_visit.reserve(32);
+  std::vector<int> to_visit;
+  to_visit.reserve(32);
 
   auto const should_visit =
     [](int symbol, std::vector<int> const &to_visit) -> bool
@@ -48,7 +45,7 @@ void closure(Grammar const &grammar, ItemSet &item_set)
       return true;
     };
 
-  for (auto const &item : item_set)
+  for (auto const &item: item_set)
   {
     int const symbol = symbol_at_dot(item);
     if (is_variable(symbol) && should_visit(symbol, to_visit))
@@ -57,13 +54,11 @@ void closure(Grammar const &grammar, ItemSet &item_set)
 
   for (size_t i = 0; i < to_visit.size(); i++)
   {
-    int const symbol = to_visit[i];
+    uint32_t const symbol = to_visit[i];
 
-    for (
-      auto it = grammar.lower_bound({ symbol });
-      it != grammar.end() && (*it)[0] == symbol;
-      it++
-      )
+    for (auto it = grammar.rules.lower_bound({ symbol });
+         it != grammar.rules.end() && (*it)[0] == symbol;
+         it++)
     {
       item_set.emplace(&(*it), 1);
 
@@ -74,7 +69,7 @@ void closure(Grammar const &grammar, ItemSet &item_set)
   }
 }
 
-ParsingTable find_item_sets(Grammar const &grammar)
+ParsingTable find_item_sets(const Grammar &grammar)
 {
   auto const shift_dot =
     [](Item const &item) -> Item
@@ -101,13 +96,13 @@ ParsingTable find_item_sets(Grammar const &grammar)
       return true;
     };
 
-  if (grammar.empty())
+  if (grammar.rules.empty())
     return { };
 
-  ParsingTable table; table.reserve(32);
+  ParsingTable table;
 
-  table.push_back({ { { &(*grammar.begin()), 1 } }, { } });
-
+  table.reserve(32);
+  table.push_back({ { { &(*grammar.rules.begin()), 1 } }, { } });
   closure(grammar, table[0].first);
 
   for (size_t i = 0; i < table.size(); i++)

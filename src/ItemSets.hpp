@@ -8,7 +8,7 @@
 struct ItemIsLess;
 struct Action;
 
-using Item = std::pair<Rule const *, size_t>;
+using Item = std::pair<Grammar::Rule const *, size_t>;
 using ItemSet = std::set<Item, ItemIsLess>;
 using ParsingTable =
   std::vector<std::pair<ItemSet, std::list<Action>>>;
@@ -29,7 +29,7 @@ struct Action
 
   int source,
     destination;
-  Rule const *reduce_to;
+  Grammar::Rule const *reduce_to;
 };
 
 ParsingTable find_item_sets(Grammar const &grammar);

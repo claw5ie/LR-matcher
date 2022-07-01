@@ -7,9 +7,14 @@
 
 #define MIN_VAR_INDEX 256
 
-using Rule = std::vector<int>;
-using Grammar = std::set<Rule>;
+struct Grammar
+{
+  using Rule = std::vector<uint32_t>;
 
-std::pair<Grammar, std::vector<std::string>> parse_grammar(char const *str);
+  std::set<Rule> rules;
+  std::vector<std::string> lookup;
+};
+
+Grammar parse_grammar(char const *str);
 
 #endif // GRAMMAR_HPP
