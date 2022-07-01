@@ -1,7 +1,7 @@
 #include <iostream>
 
-#include "Grammar.hpp"
-#include "ItemSets.hpp"
+#include "src/Grammar.hpp"
+#include "src/ItemSets.hpp"
 
 int main(int argc, char **argv)
 {

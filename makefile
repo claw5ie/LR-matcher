@@ -1,9 +1,7 @@
-all: release_build
+wflags=-Wall -Wextra -pedantic
 
-WFLAGS=-Wall -Wextra -pedantic
+release: ./main.cpp ./src/Grammar.cpp ./src/ItemSets.cpp
+	g++ -O3 $^
 
-release_build: ./main.cpp ./Grammar.cpp ./ItemSets.cpp
-	g++ -O3 -o main.out $^
-
-debug_build: ./main.cpp ./Grammar.cpp ./ItemSets.cpp
-	g++ -std=c++11 $(WFLAGS) -g -o main.out $^
+debug: ./main.cpp ./src/Grammar.cpp ./src/ItemSets.cpp
+	g++ -std=c++11 $(wflags) -g $^
