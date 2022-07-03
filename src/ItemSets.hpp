@@ -5,32 +5,43 @@
 #include <cstddef>
 #include "Grammar.hpp"
 
-struct ItemIsLess;
-struct Action;
+struct Action
+{
+  enum Type
+  {
+    Shift,
+    Goto,
+    Reduce
+  };
 
-using Item = std::pair<Grammar::Rule const *, size_t>;
-using ItemSet = std::set<Item, ItemIsLess>;
-using ParsingTable =
-  std::vector<std::pair<ItemSet, std::list<Action>>>;
+  Type type;
+  uint32_t source,
+    destination;
+  Grammar::Rule const *reduce_to;
+};
+
+struct Item
+{
+  const Grammar::Rule *rule;
+  size_t dot;
+};
+
+bool are_items_different(const Item &left, const Item &right);
 
 struct ItemIsLess
 {
   bool operator()(Item const &, Item const &) const;
 };
 
-struct Action
-{
-  enum
-  {
-    Shift,
-    Goto,
-    Reduce
-  } action;
+using ItemSet = std::set<Item, ItemIsLess>;
 
-  int source,
-    destination;
-  Grammar::Rule const *reduce_to;
+struct State
+{
+  ItemSet itemset;
+  std::list<Action> actions;
 };
+
+using ParsingTable = std::vector<State>;
 
 ParsingTable find_item_sets(Grammar const &grammar);
 

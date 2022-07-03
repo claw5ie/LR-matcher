@@ -1,26 +1,33 @@
 #include "ItemSets.hpp"
 
-bool is_variable(int symbol)
+bool is_variable(uint32_t symbol)
 {
   return symbol >= MIN_VAR_INDEX;
 }
 
-int symbol_at_dot(Item const &item)
+uint32_t symbol_at_dot(Item const &item)
 {
-  return (*item.first)[item.second];
+  return (*item.rule)[item.dot];
 }
 
-bool ItemIsLess::operator()(Item const &left, Item const &right) const
+bool are_items_different(const Item &left, const Item &right)
 {
-  int const sym_left = symbol_at_dot(left),
+  return left.rule != right.rule && left.dot != right.dot;
+}
+
+bool ItemIsLess::operator()(
+  Item const &left, Item const &right
+  ) const
+{
+  uint32_t const sym_left = symbol_at_dot(left),
     sym_right = symbol_at_dot(right);
 
   if (sym_left == sym_right)
   {
-    if (left.second == right.second)
-      return left.first < right.first;
+    if (left.dot == right.dot)
+      return left.rule < right.rule;
     else
-      return left.second < right.second;
+      return left.dot < right.dot;
   }
   else
   {
@@ -30,13 +37,13 @@ bool ItemIsLess::operator()(Item const &left, Item const &right) const
 
 void closure(Grammar const &grammar, ItemSet &item_set)
 {
-  std::vector<int> to_visit;
-  to_visit.reserve(32);
+  std::vector<uint32_t> to_visit;
 
   auto const should_visit =
-    [](int symbol, std::vector<int> const &to_visit) -> bool
+    [](uint32_t symbol,
+       std::vector<uint32_t> const &to_visit) -> bool
     {
-      for (int elem: to_visit)
+      for (uint32_t elem: to_visit)
       {
         if (elem == symbol)
           return false;
@@ -47,7 +54,7 @@ void closure(Grammar const &grammar, ItemSet &item_set)
 
   for (auto const &item: item_set)
   {
-    int const symbol = symbol_at_dot(item);
+    uint32_t const symbol = symbol_at_dot(item);
     if (is_variable(symbol) && should_visit(symbol, to_visit))
       to_visit.push_back(symbol);
   }
@@ -60,9 +67,9 @@ void closure(Grammar const &grammar, ItemSet &item_set)
          it != grammar.rules.end() && (*it)[0] == symbol;
          it++)
     {
-      item_set.emplace(&(*it), 1);
+      item_set.emplace(Item{ &(*it), 1 });
 
-      int const new_candidate = (*it)[1];
+      uint32_t const new_candidate = (*it)[1];
       if (is_variable(new_candidate) && should_visit(new_candidate, to_visit))
         to_visit.push_back(new_candidate);
     }
@@ -74,7 +81,7 @@ ParsingTable find_item_sets(const Grammar &grammar)
   auto const shift_dot =
     [](Item const &item) -> Item
     {
-      return { item.first, item.second + ((*item.first)[item.second] != 0) };
+      return { item.rule, item.dot + ((*item.rule)[item.dot] != 0) };
     };
 
   auto const are_item_sets_equal =
@@ -83,13 +90,11 @@ ParsingTable find_item_sets(const Grammar &grammar)
       if (left.size() != right.size())
         return false;
 
-      for (
-        auto lit = left.begin(), rit = right.begin();
-        lit != left.end();
-        lit++, rit++
-        )
+      for (auto lit = left.begin(), rit = right.begin();
+           lit != left.end();
+           lit++, rit++)
       {
-        if (*lit != *rit)
+        if (are_items_different(*lit, *rit))
           return false;
       }
 
@@ -101,46 +106,46 @@ ParsingTable find_item_sets(const Grammar &grammar)
 
   ParsingTable table;
 
-  table.reserve(32);
   table.push_back({ { { &(*grammar.rules.begin()), 1 } }, { } });
-  closure(grammar, table[0].first);
+  closure(grammar, table[0].itemset);
 
   for (size_t i = 0; i < table.size(); i++)
   {
-    auto &item_set = table[i].first;
+    auto &item_set = table[i].itemset;
 
     for (auto it = item_set.begin(); it != item_set.end(); )
     {
       if (symbol_at_dot(*it) == 0)
       {
-        auto &actions = table[i].second;
+        auto &actions = table[i].actions;
         while (it != item_set.end() && symbol_at_dot(*it) == 0)
         {
-          actions.push_back({ Action::Reduce, 0, 0, it->first });
-
+          actions.push_back({ Action::Reduce, 0, 0, it->rule });
           it++;
         }
       }
 
       while (it != item_set.end())
       {
-        int const shift_symbol = symbol_at_dot(*it);
+        uint32_t const shift_symbol = symbol_at_dot(*it);
 
         table.push_back({ { }, { } });
 
-        while (it != item_set.end() && symbol_at_dot(*it) == shift_symbol)
+        while (it != item_set.end() &&
+               symbol_at_dot(*it) == shift_symbol)
         {
-          table.back().first.insert(shift_dot(*it));
-
+          table.back().itemset.insert(shift_dot(*it));
           it++;
         }
 
-        closure(grammar, table.back().first);
+        closure(grammar, table.back().itemset);
 
-        int where_to_transition = table.size() - 1;
+        uint32_t where_to_transition = table.size() - 1;
         for (size_t j = 0; j + 1 < table.size(); j++)
         {
-          if (are_item_sets_equal(table[j].first, table.back().first))
+          if (are_item_sets_equal(
+                table[j].itemset, table.back().itemset
+                ))
           {
             table.pop_back();
             where_to_transition = j;
@@ -148,12 +153,12 @@ ParsingTable find_item_sets(const Grammar &grammar)
           }
         }
 
-        table[i].second.push_back({
-            is_variable(shift_symbol) ? Action::Goto : Action::Shift,
+        table[i].actions.push_back(
+          { is_variable(shift_symbol) ? Action::Goto : Action::Shift,
             shift_symbol,
             where_to_transition,
-            nullptr
-          });
+            nullptr }
+          );
       }
     }
   }

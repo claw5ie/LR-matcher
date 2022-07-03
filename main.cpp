@@ -42,9 +42,9 @@ int main(int argc, char **argv)
   for (size_t i = 0; i < item_sets.size(); i++)
   {
     std::cout << "State " << i << ":\n  ";
-    for (auto const &trans : item_sets[i].second)
+    for (auto const &trans : item_sets[i].actions)
     {
-      switch (trans.action)
+      switch (trans.type)
       {
       case Action::Reduce:
         std::cout << "r(";
@@ -66,16 +66,16 @@ int main(int argc, char **argv)
 
     std::cout << std::endl;
 
-    for (auto const &item : item_sets[i].first)
+    for (auto const &item : item_sets[i].itemset)
     {
-      std::cout << grammar.lookup[(*item.first)[0] - MIN_VAR_INDEX] << " : ";
+      std::cout << grammar.lookup[(*item.rule)[0] - MIN_VAR_INDEX] << " : ";
 
-      for (size_t i = 1, end = item.first->size(); i < end; i++)
+      for (size_t i = 1, end = item.rule->size(); i < end; i++)
       {
-        if (i == item.second)
+        if (i == item.dot)
           std::cout << (i == 1 ? ". " : " . ");
 
-        int const val = (*item.first)[i];
+        int const val = (*item.rule)[i];
 
         if (val == 0)
           std::cout << '\n';
