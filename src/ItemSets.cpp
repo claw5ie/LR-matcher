@@ -111,27 +111,29 @@ ParsingTable find_item_sets(const Grammar &grammar)
 
   for (size_t i = 0; i < table.size(); i++)
   {
-    auto &item_set = table[i].itemset;
+    auto *item_set = &table[i].itemset;
 
-    for (auto it = item_set.begin(); it != item_set.end(); )
+    for (auto it = item_set->begin(); it != item_set->end(); )
     {
       if (symbol_at_dot(*it) == 0)
       {
         auto &actions = table[i].actions;
-        while (it != item_set.end() && symbol_at_dot(*it) == 0)
+        while (it != item_set->end() && symbol_at_dot(*it) == 0)
         {
           actions.push_back({ Action::Reduce, 0, 0, it->rule });
           it++;
         }
       }
 
-      while (it != item_set.end())
+      while (it != item_set->end())
       {
         uint32_t const shift_symbol = symbol_at_dot(*it);
 
         table.push_back({ { }, { } });
+        // Update reference in case of reallocation.
+        item_set = &table[i].itemset;
 
-        while (it != item_set.end() &&
+        while (it != item_set->end() &&
                symbol_at_dot(*it) == shift_symbol)
         {
           table.back().itemset.insert(shift_dot(*it));
