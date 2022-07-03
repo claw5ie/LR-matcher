@@ -25,6 +25,6 @@ make
 ```
 or GCC
 ```
-g++ -O3 main.cpp src/Grammar.cpp src/ItemSets.cpp
+g++ -O3 src/main.cpp src/Grammar.cpp src/ItemSets.cpp
 ./a.out "S: (S)S | ()"
 ```
