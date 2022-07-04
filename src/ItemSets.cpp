@@ -12,7 +12,7 @@ uint32_t symbol_at_dot(const Item &item)
 
 bool are_items_different(const Item &left, const Item &right)
 {
-  return left.rule != right.rule && left.dot != right.dot;
+  return left.rule != right.rule || left.dot != right.dot;
 }
 
 bool ItemIsLess::operator()(
