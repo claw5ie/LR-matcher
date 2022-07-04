@@ -12,80 +12,69 @@ int main(int argc, char **argv)
     return EXIT_FAILURE;
   }
 
-  auto grammar = parse_grammar(argv[1]);
-
-  auto const print_rule =
-    [](Grammar::Rule const &rule, std::vector<std::string> const &lookup) -> void
-    {
-      std::cout << lookup[rule[0] - MIN_VAR_INDEX] << " : ";
-
-      for (size_t i = 1; i + 1 < rule.size(); i++)
-      {
-        if (rule[i] >= MIN_VAR_INDEX)
-          std::cout << lookup[rule[i] - MIN_VAR_INDEX];
-        else
-          std::cout << (char)rule[i];
-      }
-    };
+  auto const grammar = parse_grammar(argv[1]);
 
   std::cout << "Grammar:\n";
-  for (auto const &elem : grammar.rules)
-  {
-    std::cout << "  ";
-    print_rule(elem, grammar.lookup);
-    std::cout << '\n';
-  }
+  for (const auto &elem: grammar.rules)
+    std::cout << "  " << rule_to_string(grammar, elem) << '\n';
   std::cout << '\n';
 
-  auto item_sets = find_item_sets(grammar);
+  auto const item_sets = find_item_sets(grammar);
 
   for (size_t i = 0; i < item_sets.size(); i++)
   {
     std::cout << "State " << i << ":\n  ";
-    for (auto const &trans : item_sets[i].actions)
+    for (const auto &trans: item_sets[i].actions)
     {
       switch (trans.type)
       {
       case Action::Reduce:
-        std::cout << "r(";
-        print_rule(*trans.reduce_to, grammar.lookup);
-        std::cout << ")";
+        std::cout << "r("
+                  << rule_to_string(grammar, *trans.reduce_to)
+                  << ")";
         break;
       case Action::Shift:
-        std::cout << '\'' << (char)trans.source
-                  << "\' -> s" << trans.destination;
+        std::cout << '\''
+                  << (char)trans.src
+                  << "\' -> s"
+                  << trans.dst;
         break;
       case Action::Goto:
-        std::cout << grammar.lookup[trans.source - MIN_VAR_INDEX]
-                  << " -> g" << trans.destination;
+        std::cout << grammar.lookup[trans.src - MIN_VAR_INDEX]
+                  << " -> g" << trans.dst;
         break;
       }
 
       std::cout << "; ";
     }
 
-    std::cout << std::endl;
+    std::cout << '\n';
 
-    for (auto const &item : item_sets[i].itemset)
+    for (const auto &item: item_sets[i].itemset)
     {
-      std::cout << grammar.lookup[(*item.rule)[0] - MIN_VAR_INDEX] << " : ";
+      std::cout << grammar.lookup[(*item.rule)[0] - MIN_VAR_INDEX]
+                << ": ";
 
-      for (size_t i = 1, end = item.rule->size(); i < end; i++)
+      size_t i = 1;
+      for (; i + 1 < item.rule->size(); i++)
       {
         if (i == item.dot)
-          std::cout << (i == 1 ? ". " : " . ");
+          std::cout << '.';
 
-        int const val = (*item.rule)[i];
+        uint32_t const symbol = (*item.rule)[i];
 
-        if (val == 0)
-          std::cout << '\n';
-        else if (val >= MIN_VAR_INDEX)
-          std::cout << grammar.lookup[val - MIN_VAR_INDEX];
+        if (symbol >= MIN_VAR_INDEX)
+          std::cout << grammar.lookup[symbol - MIN_VAR_INDEX];
         else
-          std::cout << (char)val;
+          std::cout << (char)symbol;
       }
+
+      if (i == item.dot)
+        std::cout << '.';
+
+      std::cout << '\n';
     }
 
-    std::cout << std::endl;
+    std::cout << '\n';
   }
 }

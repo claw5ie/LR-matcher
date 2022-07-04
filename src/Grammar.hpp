@@ -15,6 +15,10 @@ struct Grammar
   std::vector<std::string> lookup;
 };
 
-Grammar parse_grammar(char const *str);
+Grammar parse_grammar(const char *str);
+
+std::string rule_to_string(
+  const Grammar &grammar, const Grammar::Rule &rule
+  );
 
 #endif // GRAMMAR_HPP

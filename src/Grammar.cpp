@@ -18,7 +18,7 @@ struct Token
   };
 
   Type type;
-  char const *text;
+  const char *text;
   size_t size;
 };
 
@@ -54,7 +54,7 @@ Token next_token(const char *&at)
   while (std::isspace(*at))
     ++at;
 
-  char const *const text = at;
+  const char *const text = at;
 
   at += (*at != '\0');
 
@@ -125,7 +125,7 @@ Token next_token(const char *&at)
   }
 }
 
-Grammar parse_grammar(char const *str)
+Grammar parse_grammar(const char *str)
 {
   struct VarInfo
   {
@@ -208,7 +208,7 @@ Grammar parse_grammar(char const *str)
   grammar.rules.insert({ MIN_VAR_INDEX, MIN_VAR_INDEX + 1, 0 });
   grammar.lookup[0] = "start";
 
-  for (auto const &elem: vars)
+  for (const auto &elem: vars)
   {
     if (elem.second.is_unresolved)
     {
@@ -225,4 +225,28 @@ Grammar parse_grammar(char const *str)
   }
 
   return grammar;
+}
+
+std::string rule_to_string(
+  const Grammar &grammar, const Grammar::Rule &rule
+  )
+{
+  assert(rule.size() > 0 && rule[0] >= MIN_VAR_INDEX);
+
+  std::string res = grammar.lookup[rule[0] - MIN_VAR_INDEX];
+
+  res.push_back(':');
+  res.push_back(' ');
+
+  for (size_t i = 1; i + 1 < rule.size(); i++)
+  {
+    uint32_t const elem = rule[i];
+
+    if (elem >= MIN_VAR_INDEX)
+      res.append(grammar.lookup[elem - MIN_VAR_INDEX]);
+    else
+      res.push_back((char)elem);
+  }
+
+  return res;
 }

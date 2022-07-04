@@ -5,7 +5,7 @@ bool is_variable(uint32_t symbol)
   return symbol >= MIN_VAR_INDEX;
 }
 
-uint32_t symbol_at_dot(Item const &item)
+uint32_t symbol_at_dot(const Item &item)
 {
   return (*item.rule)[item.dot];
 }
@@ -16,7 +16,7 @@ bool are_items_different(const Item &left, const Item &right)
 }
 
 bool ItemIsLess::operator()(
-  Item const &left, Item const &right
+  const Item &left, const Item &right
   ) const
 {
   uint32_t const sym_left = symbol_at_dot(left),
@@ -35,13 +35,13 @@ bool ItemIsLess::operator()(
   }
 }
 
-void closure(Grammar const &grammar, ItemSet &item_set)
+void closure(const Grammar &grammar, ItemSet &item_set)
 {
   std::vector<uint32_t> to_visit;
 
   auto const should_visit =
     [](uint32_t symbol,
-       std::vector<uint32_t> const &to_visit) -> bool
+       const std::vector<uint32_t> &to_visit) -> bool
     {
       for (uint32_t elem: to_visit)
       {
@@ -52,7 +52,7 @@ void closure(Grammar const &grammar, ItemSet &item_set)
       return true;
     };
 
-  for (auto const &item: item_set)
+  for (const auto &item: item_set)
   {
     uint32_t const symbol = symbol_at_dot(item);
     if (is_variable(symbol) && should_visit(symbol, to_visit))
@@ -79,13 +79,13 @@ void closure(Grammar const &grammar, ItemSet &item_set)
 ParsingTable find_item_sets(const Grammar &grammar)
 {
   auto const shift_dot =
-    [](Item const &item) -> Item
+    [](const Item &item) -> Item
     {
       return { item.rule, item.dot + ((*item.rule)[item.dot] != 0) };
     };
 
   auto const are_item_sets_equal =
-    [](ItemSet const &left, ItemSet const &right) -> bool
+    [](const ItemSet &left, const ItemSet &right) -> bool
     {
       if (left.size() != right.size())
         return false;

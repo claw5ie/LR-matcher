@@ -15,8 +15,8 @@ struct Action
   };
 
   Type type;
-  uint32_t source,
-    destination;
+  uint32_t src;
+  uint32_t dst;
   Grammar::Rule const *reduce_to;
 };
 
@@ -30,7 +30,7 @@ bool are_items_different(const Item &left, const Item &right);
 
 struct ItemIsLess
 {
-  bool operator()(Item const &, Item const &) const;
+  bool operator()(const Item &, const Item &) const;
 };
 
 using ItemSet = std::set<Item, ItemIsLess>;
@@ -43,6 +43,6 @@ struct State
 
 using ParsingTable = std::vector<State>;
 
-ParsingTable find_item_sets(Grammar const &grammar);
+ParsingTable find_item_sets(const Grammar &grammar);
 
 #endif // ITEM_SETS_HPP
