@@ -38,7 +38,7 @@ int main(int argc, char **argv)
              << trans.dst;
         break;
       case Action::Goto:
-        cout << grammar.lookup[trans.src - MIN_VAR_INDEX]
+        cout << lookup(grammar, trans.src)
              << " -> g" << trans.dst;
         break;
       }
@@ -50,7 +50,7 @@ int main(int argc, char **argv)
 
     for (const auto &item: item_sets[i].itemset)
     {
-      cout << grammar.lookup[(*item.rule)[0] - MIN_VAR_INDEX]
+      cout << lookup(grammar, (*item.rule)[0])
            << ": ";
 
       size_t i = 1;
@@ -61,8 +61,8 @@ int main(int argc, char **argv)
 
         uint32_t const symbol = (*item.rule)[i];
 
-        if (symbol >= MIN_VAR_INDEX)
-          cout << grammar.lookup[symbol - MIN_VAR_INDEX];
+        if (is_variable(symbol))
+          cout << lookup(grammar, symbol);
         else
           cout << (char)symbol;
       }

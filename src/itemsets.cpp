@@ -127,6 +127,16 @@ Token next_token(const char *&at)
   }
 }
 
+std::string &lookup(Grammar &grammar, size_t index)
+{
+  return grammar.lookup[index - MIN_VAR_INDEX];
+}
+
+const std::string &lookup(const Grammar &grammar, size_t index)
+{
+  return grammar.lookup[index - MIN_VAR_INDEX];
+}
+
 Grammar parse_grammar(const char *str)
 {
   struct VarInfo
@@ -222,20 +232,24 @@ Grammar parse_grammar(const char *str)
       exit(EXIT_FAILURE);
     }
 
-    grammar.lookup[elem.second.index - MIN_VAR_INDEX] =
-      move(elem.first);
+    lookup(grammar, elem.second.index) = move(elem.first);
   }
 
   return grammar;
+}
+
+bool is_variable(uint32_t symbol)
+{
+  return symbol >= MIN_VAR_INDEX;
 }
 
 string rule_to_string(
   const Grammar &grammar, const Grammar::Rule &rule
   )
 {
-  assert(rule.size() > 0 && rule[0] >= MIN_VAR_INDEX);
+  assert(rule.size() > 0 && is_variable(rule[0]));
 
-  string res = grammar.lookup[rule[0] - MIN_VAR_INDEX];
+  string res = lookup(grammar, rule[0]);
 
   res.push_back(':');
   res.push_back(' ');
@@ -244,18 +258,13 @@ string rule_to_string(
   {
     uint32_t const elem = rule[i];
 
-    if (elem >= MIN_VAR_INDEX)
-      res.append(grammar.lookup[elem - MIN_VAR_INDEX]);
+    if (is_variable(elem))
+      res.append(lookup(grammar, elem));
     else
       res.push_back((char)elem);
   }
 
   return res;
-}
-
-bool is_variable(uint32_t symbol)
-{
-  return symbol >= MIN_VAR_INDEX;
 }
 
 uint32_t symbol_at_dot(const Item &item)
