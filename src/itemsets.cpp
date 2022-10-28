@@ -2,6 +2,8 @@
 #include <map>
 #include <cassert>
 
+using namespace std;
+
 struct Token
 {
   enum Type
@@ -40,18 +42,18 @@ void assert_token_type(
 
   if (token.type != type)
   {
-    std::fprintf(
+    fprintf(
       stderr,
       "ERROR: unexpected token: I was expecting to see a %s.\n",
       lookup[type]
       );
-    std::exit(EXIT_FAILURE);
+    exit(EXIT_FAILURE);
   }
 }
 
 Token next_token(const char *&at)
 {
-  while (std::isspace(*at))
+  while (isspace(*at))
     ++at;
 
   const char *const text = at;
@@ -70,16 +72,16 @@ Token next_token(const char *&at)
     return { Token::End_Of_File, text, 1 };
   }
 
-  if (std::isupper(*text))
+  if (isupper(*text))
   {
     auto const is_special_char =
       [](char ch) -> bool
-      {
-        return ch == '\'' || ch == '-' || ch == '_';
-      };
+        {
+          return ch == '\'' || ch == '-' || ch == '_';
+        };
 
-    while (std::isalpha(*at) ||
-           std::isdigit(*at) ||
+    while (isalpha(*at) ||
+           isdigit(*at) ||
            is_special_char(*at))
     {
       ++at;
@@ -91,13 +93,13 @@ Token next_token(const char *&at)
   {
     auto const is_escape_char =
       [](char ch) -> bool
-      {
-        return std::isupper(ch) ||
-          ch == ':' ||
-          ch == ';' ||
-          ch == '|' ||
-          ch == ' ';
-      };
+        {
+          return isupper(ch) ||
+            ch == ':' ||
+            ch == ';' ||
+            ch == '|' ||
+            ch == ' ';
+        };
 
     // Undo the previous increment.
     --at;
@@ -109,12 +111,12 @@ Token next_token(const char *&at)
 
         if (!is_escape_char(*at) && *at != '\\')
         {
-          std::fprintf(
+          fprintf(
             stderr,
             "ERROR: invalid escape sequence `\\%c`.\n",
             *at
             );
-          std::exit(EXIT_FAILURE);
+          exit(EXIT_FAILURE);
         }
       }
 
@@ -133,7 +135,7 @@ Grammar parse_grammar(const char *str)
     bool is_unresolved;
   };
 
-  std::map<std::string, VarInfo> vars;
+  map<string, VarInfo> vars;
   Token token = next_token(str);
   // "MIN_VAR_INDEX" is reserved for additional variable.
   uint32_t next_var_index = MIN_VAR_INDEX + 1;
@@ -146,7 +148,7 @@ Grammar parse_grammar(const char *str)
 
     uint32_t curr_var_index;
     {
-      auto it = vars.emplace(std::string(token.text, token.size),
+      auto it = vars.emplace(string(token.text, token.size),
                              VarInfo{ next_var_index, false });
 
       it.first->second.is_unresolved = false;
@@ -159,7 +161,7 @@ Grammar parse_grammar(const char *str)
 
   insert_rule:
     token = next_token(str);
-    std::vector<uint32_t> rule;
+    vector<uint32_t> rule;
     rule.push_back(curr_var_index);
 
     while (token.type == Token::Variable ||
@@ -167,7 +169,7 @@ Grammar parse_grammar(const char *str)
     {
       if (token.type == Token::Variable)
       {
-        auto it = vars.emplace(std::string(token.text, token.size),
+        auto it = vars.emplace(string(token.text, token.size),
                                VarInfo{ next_var_index, true });
 
         rule.push_back(it.first->second.index);
@@ -188,15 +190,15 @@ Grammar parse_grammar(const char *str)
     }
 
     rule.push_back(0);
-    grammar.rules.insert(std::move(rule));
+    grammar.rules.insert(move(rule));
 
     switch (token.type)
     {
     case Token::Bar:
       goto insert_rule;
     case Token::Colon:
-      std::fputs("ERROR: unexpected `:`.\n", stderr);
-      std::exit(EXIT_FAILURE);
+      fputs("ERROR: unexpected `:`.\n", stderr);
+      exit(EXIT_FAILURE);
     default:
       ;
     }
@@ -212,28 +214,28 @@ Grammar parse_grammar(const char *str)
   {
     if (elem.second.is_unresolved)
     {
-      std::fprintf(
+      fprintf(
         stderr,
         "ERROR: unresolved variable `%s`.\n",
         elem.first.c_str()
         );
-      std::exit(EXIT_FAILURE);
+      exit(EXIT_FAILURE);
     }
 
     grammar.lookup[elem.second.index - MIN_VAR_INDEX] =
-      std::move(elem.first);
+      move(elem.first);
   }
 
   return grammar;
 }
 
-std::string rule_to_string(
+string rule_to_string(
   const Grammar &grammar, const Grammar::Rule &rule
   )
 {
   assert(rule.size() > 0 && rule[0] >= MIN_VAR_INDEX);
 
-  std::string res = grammar.lookup[rule[0] - MIN_VAR_INDEX];
+  string res = grammar.lookup[rule[0] - MIN_VAR_INDEX];
 
   res.push_back(':');
   res.push_back(' ');
@@ -288,20 +290,20 @@ bool ItemIsLess::operator()(
 
 void closure(const Grammar &grammar, ItemSet &item_set)
 {
-  std::vector<uint32_t> to_visit;
+  vector<uint32_t> to_visit;
 
   auto const should_visit =
     [](uint32_t symbol,
-       const std::vector<uint32_t> &to_visit) -> bool
-    {
-      for (uint32_t elem: to_visit)
+       const vector<uint32_t> &to_visit) -> bool
       {
-        if (elem == symbol)
-          return false;
-      }
+        for (uint32_t elem: to_visit)
+        {
+          if (elem == symbol)
+            return false;
+        }
 
-      return true;
-    };
+        return true;
+      };
 
   for (const auto &item: item_set)
   {
@@ -331,26 +333,26 @@ ParsingTable find_item_sets(const Grammar &grammar)
 {
   auto const shift_dot =
     [](const Item &item) -> Item
-    {
-      return { item.rule, item.dot + ((*item.rule)[item.dot] != 0) };
-    };
+      {
+        return { item.rule, item.dot + ((*item.rule)[item.dot] != 0) };
+      };
 
   auto const are_item_sets_equal =
     [](const ItemSet &left, const ItemSet &right) -> bool
-    {
-      if (left.size() != right.size())
-        return false;
-
-      for (auto lit = left.begin(), rit = right.begin();
-           lit != left.end();
-           lit++, rit++)
       {
-        if (are_items_different(*lit, *rit))
+        if (left.size() != right.size())
           return false;
-      }
 
-      return true;
-    };
+        for (auto lit = left.begin(), rit = right.begin();
+             lit != left.end();
+             lit++, rit++)
+        {
+          if (are_items_different(*lit, *rit))
+            return false;
+        }
+
+        return true;
+      };
 
   if (grammar.rules.empty())
     return { };
