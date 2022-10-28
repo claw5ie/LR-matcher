@@ -18,13 +18,7 @@ Special characters (`:`, `;`, `|`, ` `, `\` and upper case letters) can be escap
 
 ## Compilation and execution
 
-Using GNU make
 ```
-make
-./a.out "S: (S)S | ()"
-```
-or GCC
-```
-g++ -O3 src/main.cpp src/Grammar.cpp src/ItemSets.cpp
+g++ -O3 -o a.out src/main.cpp
 ./a.out "S: (S)S | ()"
 ```
