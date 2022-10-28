@@ -1,9 +1,21 @@
-#ifndef ITEM_SETS_HPP
-#define ITEM_SETS_HPP
+#ifndef ITEMSETS_HPP
+#define ITEMSETS_HPP
 
+#include <vector>
+#include <string>
 #include <list>
-#include <cstddef>
-#include "Grammar.hpp"
+#include <set>
+#include <cstdint>
+
+#define MIN_VAR_INDEX 256
+
+struct Grammar
+{
+  using Rule = std::vector<uint32_t>;
+
+  std::set<Rule> rules;
+  std::vector<std::string> lookup;
+};
 
 struct Action
 {
@@ -26,8 +38,6 @@ struct Item
   size_t dot;
 };
 
-bool are_items_different(const Item &left, const Item &right);
-
 struct ItemIsLess
 {
   bool operator()(const Item &, const Item &) const;
@@ -43,6 +53,4 @@ struct State
 
 using ParsingTable = std::vector<State>;
 
-ParsingTable find_item_sets(const Grammar &grammar);
-
-#endif // ITEM_SETS_HPP
+#endif // ITEMSETS_HPP

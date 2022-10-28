@@ -1,7 +1,5 @@
+#include "itemsets.cpp"
 #include <iostream>
-
-#include "Grammar.hpp"
-#include "ItemSets.hpp"
 
 int main(int argc, char **argv)
 {
