@@ -4,26 +4,6 @@
 
 using namespace std;
 
-struct Token
-{
-  enum Type
-  {
-    Variable = 0,
-    Term_Seq,
-
-    Colon,
-    Semicolon,
-    Bar,
-
-    End_Of_File,
-    Count
-  };
-
-  Type type;
-  const char *text;
-  size_t size;
-};
-
 void assert_token_type(
   const Token &token,
   Token::Type type

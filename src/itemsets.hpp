@@ -9,6 +9,26 @@
 
 #define MIN_VAR_INDEX 256
 
+struct Token
+{
+  enum Type
+  {
+    Variable = 0,
+    Term_Seq,
+
+    Colon,
+    Semicolon,
+    Bar,
+
+    End_Of_File,
+    Count
+  };
+
+  Type type;
+  const char *text;
+  size_t size;
+};
+
 struct Grammar
 {
   using Rule = std::vector<uint32_t>;
