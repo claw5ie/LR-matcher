@@ -26,19 +26,19 @@ int main(int argc, char **argv)
     {
       switch (trans.type)
       {
-      case Action::Reduce:
+      case Action_Reduce:
         cout << "r("
              << rule_to_string(grammar, *trans.reduce_to)
              << ")";
         break;
-      case Action::Shift:
+      case Action_Shift:
         cout << '\''
-             << (char)trans.src
+             << (char)trans.label
              << "\' -> s"
              << trans.dst;
         break;
-      case Action::Goto:
-        cout << lookup(grammar, trans.src)
+      case Action_Goto:
+        cout << lookup(grammar, trans.label)
              << " -> g" << trans.dst;
         break;
       }

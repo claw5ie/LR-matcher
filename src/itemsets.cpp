@@ -6,12 +6,12 @@ using namespace std;
 
 void assert_token_type(
   const Token &token,
-  Token::Type type
+  TokenType type
   )
 {
-  assert(type < Token::Count);
+  assert(type < Token_Count);
 
-  const char *lookup[Token::Count] = {
+  const char *lookup[Token_Count] = {
     "variable",
     "sequence of terminals",
     "`:`",
@@ -43,13 +43,13 @@ Token next_token(const char *&at)
   switch (*text)
   {
   case ':':
-    return { Token::Colon, text, 1 };
+    return { Token_Colon, text, 1 };
   case ';':
-    return { Token::Semicolon, text, 1 };
+    return { Token_Semicolon, text, 1 };
   case '|':
-    return { Token::Bar, text, 1 };
+    return { Token_Bar, text, 1 };
   case '\0':
-    return { Token::End_Of_File, text, 1 };
+    return { Token_End_Of_File, text, 1 };
   }
 
   if (isupper(*text))
@@ -67,7 +67,7 @@ Token next_token(const char *&at)
       ++at;
     }
 
-    return { Token::Variable, text, size_t(at - text) };
+    return { Token_Variable, text, size_t(at - text) };
   }
   else
   {
@@ -103,7 +103,7 @@ Token next_token(const char *&at)
       at++;
     }
 
-    return { Token::Term_Seq, text, size_t(at - text) };
+    return { Token_Term_Seq, text, size_t(at - text) };
   }
 }
 
@@ -132,9 +132,9 @@ Grammar parse_grammar(const char *str)
 
   Grammar grammar;
 
-  while (token.type != Token::End_Of_File)
+  while (token.type != Token_End_Of_File)
   {
-    assert(token.type == Token::Variable);
+    assert(token.type == Token_Variable);
 
     uint32_t curr_var_index;
     {
@@ -147,17 +147,17 @@ Grammar parse_grammar(const char *str)
     }
 
     token = next_token(str);
-    assert(token.type == Token::Colon);
+    assert(token.type == Token_Colon);
 
   insert_rule:
     token = next_token(str);
     vector<uint32_t> rule;
     rule.push_back(curr_var_index);
 
-    while (token.type == Token::Variable ||
-           token.type == Token::Term_Seq)
+    while (token.type == Token_Variable ||
+           token.type == Token_Term_Seq)
     {
-      if (token.type == Token::Variable)
+      if (token.type == Token_Variable)
       {
         auto it = vars.emplace(string(token.text, token.size),
                                VarInfo{ next_var_index, true });
@@ -184,9 +184,9 @@ Grammar parse_grammar(const char *str)
 
     switch (token.type)
     {
-    case Token::Bar:
+    case Token_Bar:
       goto insert_rule;
-    case Token::Colon:
+    case Token_Colon:
       fputs("ERROR: unexpected `:`.\n", stderr);
       exit(EXIT_FAILURE);
     default:
@@ -224,7 +224,7 @@ bool is_variable(uint32_t symbol)
 }
 
 string rule_to_string(
-  const Grammar &grammar, const Grammar::Rule &rule
+  const Grammar &grammar, const GrammarRule &rule
   )
 {
   assert(rule.size() > 0 && is_variable(rule[0]));
@@ -362,7 +362,7 @@ ParsingTable find_item_sets(const Grammar &grammar)
         auto &actions = table[i].actions;
         while (it != item_set->end() && symbol_at_dot(*it) == 0)
         {
-          actions.push_back({ Action::Reduce, 0, 0, it->rule });
+          actions.push_back({ Action_Reduce, 0, 0, it->rule });
           it++;
         }
       }
@@ -398,7 +398,7 @@ ParsingTable find_item_sets(const Grammar &grammar)
         }
 
         table[i].actions.push_back(
-          { is_variable(shift_symbol) ? Action::Goto : Action::Shift,
+          { is_variable(shift_symbol) ? Action_Goto : Action_Shift,
             shift_symbol,
             where_to_transition,
             nullptr }

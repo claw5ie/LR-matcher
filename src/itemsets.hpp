@@ -9,52 +9,54 @@
 
 #define MIN_VAR_INDEX 256
 
+using sym_t = uint32_t;
+
+enum TokenType
+{
+  Token_Variable = 0,
+  Token_Term_Seq,
+  Token_Colon,
+  Token_Semicolon,
+  Token_Bar,
+  Token_End_Of_File,
+  Token_Count,
+};
+
 struct Token
 {
-  enum Type
-  {
-    Variable = 0,
-    Term_Seq,
-
-    Colon,
-    Semicolon,
-    Bar,
-
-    End_Of_File,
-    Count
-  };
-
-  Type type;
+  TokenType type;
   const char *text;
   size_t size;
 };
 
+using GrammarRule = std::vector<sym_t>;
+
 struct Grammar
 {
-  using Rule = std::vector<uint32_t>;
-
-  std::set<Rule> rules;
+  std::set<GrammarRule> rules;
   std::vector<std::string> lookup;
+};
+
+enum ActionType
+{
+  Action_Shift,
+  Action_Goto,
+  Action_Reduce,
 };
 
 struct Action
 {
-  enum Type
-  {
-    Shift,
-    Goto,
-    Reduce
-  };
-
-  Type type;
-  uint32_t src;
-  uint32_t dst;
-  Grammar::Rule const *reduce_to;
+  ActionType type;
+  // Transition label when shifting.
+  sym_t label;
+  // Where to transition to.
+  size_t dst;
+  GrammarRule const *reduce_to;
 };
 
 struct Item
 {
-  const Grammar::Rule *rule;
+  const GrammarRule *rule;
   size_t dot;
 };
 
