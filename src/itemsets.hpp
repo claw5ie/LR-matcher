@@ -1,32 +1,25 @@
 #ifndef ITEMSETS_HPP
 #define ITEMSETS_HPP
 
-#include <vector>
-#include <string>
-#include <list>
-#include <set>
-#include <cstdint>
-
-#define MIN_VAR_INDEX 256
+#define LOWEST_VAR_IDX 256
 
 using sym_t = uint32_t;
 
 enum TokenType
 {
-  Token_Variable = 0,
+  Token_Variable,
   Token_Term_Seq,
   Token_Colon,
   Token_Semicolon,
   Token_Bar,
   Token_End_Of_File,
-  Token_Count,
 };
 
 struct Token
 {
   TokenType type;
-  const char *text;
-  size_t size;
+  View<char> text;
+  size_t line, column;
 };
 
 using GrammarRule = std::vector<sym_t>;
@@ -35,6 +28,16 @@ struct Grammar
 {
   std::set<GrammarRule> rules;
   std::vector<std::string> lookup;
+
+  std::vector<Token> tokens;
+  size_t current, line, column;
+
+  void
+  advance()
+  {
+    assert(current < tokens.size());
+    ++current;
+  }
 };
 
 enum ActionType
