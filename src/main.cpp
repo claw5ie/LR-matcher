@@ -4,15 +4,16 @@
 #include <list>
 #include <set>
 #include <map>
+#include <unordered_map>
+#include <functional>
+#include <memory>
 
 #include <cstring>
 #include <cstdint>
+#include <climits>
 #include <cassert>
 
-#include "utils.hpp"
 #include "itemsets.hpp"
-using namespace std;
-#include "utils.cpp"
 #include "itemsets.cpp"
 
 int
@@ -20,73 +21,72 @@ main(int argc, char **argv)
 {
   if (argc != 2)
     {
-      cerr << "error: the number of arguments should be 2.\n";
+      std::cerr << "error: the number of arguments should be 2.\n";
       return EXIT_FAILURE;
     }
 
-  auto grammar = parse_grammar(argv[1]);
+  auto grammar = parse_context_free_grammar(argv[1]);
+  auto states = compute_parsing_table(grammar);
 
-  cout << "Grammar:\n";
-  for (auto &elem: grammar.rules)
-    cout << "  " << rule_to_string(grammar, elem) << '\n';
-  cout << '\n';
+  std::cout << "Grammar:\n";
+  for (auto &rule: grammar.rules)
+    std::cout << "  " << rule_to_string(grammar, rule) << '\n';
+  std::cout << '\n';
 
-  auto item_sets = find_item_sets(grammar);
-
-  for (size_t i = 0; i < item_sets.size(); i++)
+  for (auto &state: states)
     {
-      cout << "State " << i << ":\n  ";
-      for (auto &trans: item_sets[i].actions)
+      std::cout << "State " << state.id << ":\n  ";
+      for (auto &actions: state.actions)
         {
-          switch (trans.type)
+          switch (actions.type)
             {
             case Action_Reduce:
-              cout << "r("
-                   << rule_to_string(grammar, *trans.reduce_to)
-                   << ")";
+              std::cout << "r("
+                        << rule_to_string(grammar, *actions.as.reduce.to_rule)
+                        << ")";
               break;
             case Action_Shift:
-              cout << '\''
-                   << (char)trans.label
-                   << "\' -> s"
-                   << trans.dst;
+              std::cout << '\''
+                        << actions.as.shift.label
+                        << "\' -> s"
+                        << actions.as.shift.item->id;
               break;
-            case Action_Goto:
-              cout << lookup(grammar, trans.label)
-                   << " -> g" << trans.dst;
+            case Action_Go_To:
+              std::cout << grammar.grab_variable_name(actions.as.go_to.label)
+                        << " -> g" << actions.as.go_to.item->id;
               break;
             }
 
-          cout << "; ";
+          std::cout << "; ";
         }
 
-      cout << '\n';
+      std::cout << '\n';
 
-      for (auto &item: item_sets[i].itemset)
+      for (auto &item: state.itemset)
         {
-          cout << lookup(grammar, (*item.rule)[0])
-               << ": ";
+          std::cout << grammar.grab_variable_name((*item.rule)[0])
+                    << ": ";
 
           size_t i = 1;
           for (; i + 1 < item.rule->size(); i++)
             {
-              if (i == item.dot)
-                cout << '.';
+              if (i == item.dot_index)
+                std::cout << '.';
 
-              uint32_t symbol = (*item.rule)[i];
+              auto symbol = (*item.rule)[i];
 
               if (is_variable(symbol))
-                cout << lookup(grammar, symbol);
+                std::cout << grammar.grab_variable_name(symbol);
               else
-                cout << (char)symbol;
+                std::cout << (TerminalType)symbol;
             }
 
-          if (i == item.dot)
-            cout << '.';
+          if (i == item.dot_index)
+            std::cout << '.';
 
-          cout << '\n';
+          std::cout << '\n';
         }
 
-      cout << '\n';
+      std::cout << '\n';
     }
 }

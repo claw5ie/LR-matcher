@@ -1,304 +1,168 @@
-void
-advance_line_info(Grammar &g, char ch)
-{
-  ++g.column;
-  if (ch == '\n')
-    {
-      ++g.line;
-      g.column = 1;
-    }
-}
-
-void
-tokenize(Grammar &g, const char *at)
-{
-  g.line = 1;
-  g.column = 1;
-
-  bool failed_to_tokenize = false;
-
-  while (*at != '\0')
-    {
-      while (isspace(*at))
-        advance_line_info(g, *at++);
-
-      Token token;
-      token.text.data = at;
-      token.text.count = 0;
-      token.line = g.line;
-      token.column = g.column;
-
-      if (*at == '\0')
-        break;
-      else if (isupper(*at))
-        {
-          do
-            advance_line_info(g, *at++);
-          while (isalnum(*at)
-                 || *at == '\''
-                 || *at == '-'
-                 || *at == '_');
-
-          token.type = Token_Variable;
-          token.text.count = at - token.text.data;
-        }
-      else if (*at == ':')
-        {
-          token.type = Token_Colon;
-          token.text.count = 1;
-          advance_line_info(g, *at++);
-        }
-      else if (*at == ';')
-        {
-          token.type = Token_Semicolon;
-          token.text.count = 1;
-          advance_line_info(g, *at++);
-        }
-      else if (*at == '|')
-        {
-          token.type = Token_Bar;
-          token.text.count = 1;
-          advance_line_info(g, *at++);
-        }
-      else
-        {
-          auto const is_escape_char =
-            [](char ch) -> bool
-            {
-              return isupper(ch)
-                || ch == ':'
-                || ch == ';'
-                || ch == '|'
-                || ch == ' ';
-            };
-
-          while (!is_escape_char(*at) && *at != '\0')
-            {
-              if (*at == '\\')
-                {
-                  advance_line_info(g, *at++);
-
-                  if (!is_escape_char(*at) && *at != '\\')
-                    {
-                      cerr << g.line << ':'
-                           << g.column << ": error: invalid escape sequence \'\\"
-                           << *at
-                           << "\'.\n";
-                      failed_to_tokenize = true;
-                    }
-                }
-
-              advance_line_info(g, *at++);
-            }
-
-          token.type = Token_Term_Seq;
-          token.text.count = at - token.text.data;
-        }
-
-      g.tokens.push_back(token);
-    }
-
-  if (failed_to_tokenize)
-    exit(EXIT_FAILURE);
-
-  Token token;
-  token.type = Token_End_Of_File;
-  token.text.data = at;
-  token.text.count = 0;
-  token.line = g.line;
-  token.column = g.column;
-  g.tokens.push_back(token);
-}
-
-size_t
-peek_idx(Grammar &g)
-{
-  assert(g.current < g.tokens.size());
-  return g.current;
-}
-
-TokenType
-peek(Grammar &g, size_t idx = 0)
-{
-  return g.tokens[g.current + idx].type;
-}
-
-Token &
-grab_prev_token(Grammar &g)
-{
-  return g.tokens[g.current];
-}
-
-Token &
-grab_token(Grammar &g, size_t idx)
-{
-  return g.tokens[idx];
-}
-
-bool
-expect_token_is(Grammar &g, TokenType expected)
-{
-  if (peek(g) != expected)
-    return false;
-  ++g.current;
-  return true;
-}
-
-string &
-lookup(Grammar &g, size_t index)
-{
-  return g.lookup[index - LOWEST_VAR_IDX];
-}
-
-const string &
-lookup(const Grammar &g, size_t index)
-{
-  return g.lookup[index - LOWEST_VAR_IDX];
-}
-
 Grammar
-parse_grammar(const char *str)
+parse_context_free_grammar(const char *string)
 {
-  struct Variable
+  struct VariableInfo
   {
-    size_t token_idx;
-    size_t var_idx;
+    LineInfo line_info;
+    SymbolType index;
     bool is_resolved;
   };
 
+  Tokenizer t = { };
+  t.source = string;
+
   Grammar g = { };
-  map<View<char>, Variable> vars;
-  // "MIN_VAR_INDEX" is reserved for starting variable.
-  sym_t last_unused_var_idx = LOWEST_VAR_IDX + 1;
-  bool failed_to_parse = false;
+  std::map<std::string_view, VariableInfo> variables;
 
-  tokenize(g, str);
+  auto next_symbol_index = FIRST_USER_SYMBOL_INDEX;
+  auto failed_to_parse = false;
 
-  while (peek(g) != Token_End_Of_File)
+  do
     {
-      if (peek(g) != Token_Variable)
+      if (t.peek() != Token_Variable)
         {
-          {
-            failed_to_parse = true;
-            auto token = grab_prev_token(g);
-            cerr << token.line << ':'
-                 << token.column << ": error: expected a variable to start production.\n";
-          }
+          failed_to_parse = true;
+          auto line_info = t.grab().line_info;
+          t.report_error_start(line_info);
+          t.report_error_print("expected a variable to start production");
+          t.report_error_end();
 
-          if (peek(g, 1) != Token_Colon)
+          // Skip to next production.
+          if (t.peek(1) != Token_Colon)
             {
-              auto tt = peek(g);
-              while (tt != Token_Semicolon
-                     && tt != Token_End_Of_File)
-                {
-                  g.advance();
-                  tt = peek(g);
-                }
-
-              if (tt != Token_End_Of_File)
-                g.advance();
-
+              t.skip_to_next_semicolon();
+              if (t.peek() == Token_Semicolon)
+                t.advance();
               continue;
             }
         }
 
-      size_t curr_var_index = 0;
+      SymbolType variable_definition_index = 0;
 
       {
-        Variable variable;
-        variable.token_idx = peek_idx(g);
-        variable.var_idx = last_unused_var_idx;
-        variable.is_resolved = true;
+        auto token = t.grab();
+        t.advance();
 
-        View<char> name = g.tokens[variable.token_idx].text;
-        auto it = vars.emplace(name, variable);
+        VariableInfo info;
+        info.line_info = token.line_info;
+        info.index = next_symbol_index;
+        info.is_resolved = true;
 
-        curr_var_index = it.first->second.var_idx;
-        it.first->second.is_resolved = true;
-        last_unused_var_idx += it.second;
+        auto [it, was_inserted] = variables.emplace(token.text, info);
+        auto &[key, value] = *it;
+        next_symbol_index += was_inserted;
+
+        variable_definition_index = value.index;
+        value.is_resolved = true;
       }
 
-      g.advance();
-
-      if (!expect_token_is(g, Token_Colon))
+      if (!t.expect(Token_Colon))
         {
-          auto token = grab_prev_token(g);
-          cerr << token.line << ':'
-               << token.column << ": error: expected \':\' before \'"
-               << token.text
-               << "\'.\n";
           failed_to_parse = true;
+          auto token = t.grab();
+          t.report_error_start(token.line_info);
+          t.report_error_print("expected ':' before '");
+          t.report_error_print(token.text);
+          t.report_error_print("'");
+          t.report_error_end();
         }
 
       do
         {
-          vector<sym_t> rule;
-          rule.push_back(curr_var_index);
+          Grammar::Rule rule = { };
+          rule.push_back(variable_definition_index);
 
-          auto tt = peek(g);
-          while (tt == Token_Variable
-                 || tt == Token_Term_Seq)
+          do
             {
-              if (tt == Token_Variable)
+              auto tt = t.peek();
+              switch (tt)
                 {
-                  Variable variable;
-                  variable.token_idx = peek_idx(g);
-                  variable.var_idx = last_unused_var_idx;
-                  variable.is_resolved = false;
+                case Token_Variable:
+                  {
+                    auto token = t.grab();
+                    VariableInfo info;
+                    info.line_info = token.line_info;
+                    info.index = next_symbol_index;
+                    info.is_resolved = false;
 
-                  View<char> name
-                    = g.tokens[variable.token_idx].text;
-                  auto it = vars.emplace(name, variable);
+                    auto [it, was_inserted] = variables.emplace(token.text, info);
+                    auto &[key, value] = *it;
+                    next_symbol_index += was_inserted;
 
-                  rule.push_back(it.first->second.var_idx);
-                  last_unused_var_idx += it.second;
+                    rule.push_back(value.index);
+                  }
+
+                  break;
+                case Token_Terminals_Sequence:
+                  {
+                    auto text = t.grab().text;
+                    for (size_t i = 0; i < text.size(); i++)
+                      {
+                        i += (text[i] == '\\');
+                        rule.push_back(text[i]);
+                      }
+                  }
+
+                  break;
+                case Token_Colon:
+                  {
+                    failed_to_parse = true;
+                    auto line_info = t.grab().line_info;
+                    t.report_error_start(line_info);
+                    t.report_error_print("expected variable or terminal, not colon (':')");
+                    t.report_error_end();
+                    t.skip_to_next_semicolon();
+                  }
+
+                  [[fallthrough]];
+                default:
+                  goto finish_parsing_sequence_of_terminals_and_variables;
                 }
-              else
-                {
-                  auto text = grab_prev_token(g).text;
-                  for (size_t i = 0; i < text.count; i++)
-                    {
-                      if (text.data[i] == '\\')
-                        rule.push_back(text.data[++i]);
-                      else
-                        rule.push_back(text.data[i]);
-                    }
-                }
 
-              g.advance();
-              tt = peek(g);
+              t.advance();
+              tt = t.peek();
             }
+          while (true);
+        finish_parsing_sequence_of_terminals_and_variables:
 
-          rule.push_back(0);
-          g.rules.insert(move(rule));
-
-          // Should I check if next token is colon and report an error??
+          rule.push_back(SYMBOL_END);
+          g.rules.insert(std::move(rule));
         }
-      while (expect_token_is(g, Token_Bar));
+      while (t.expect(Token_Bar));
 
-      if (peek(g) == Token_Semicolon)
-        g.advance();
+      if (t.peek() == Token_Semicolon)
+        t.advance();
     }
+  while (t.peek() != Token_End_Of_File);
 
-  g.lookup.resize(vars.size() + 1);
-  g.rules.insert({ LOWEST_VAR_IDX, LOWEST_VAR_IDX + 1, 0 });
+  if (failed_to_parse)
+    exit(EXIT_FAILURE);
+
+  g.lookup.resize(variables.size() + 1);
+  g.rules.insert({
+      FIRST_RESERVED_SYMBOL_INDEX,
+      FIRST_USER_SYMBOL_INDEX,
+      SYMBOL_END,
+    });
   g.lookup[0] = "start";
 
-  for (auto &elem: vars)
+  for (auto &[name, variable]: variables)
     {
-      if (!elem.second.is_resolved)
+      if (!variable.is_resolved)
         {
-          auto token = grab_token(g, elem.second.token_idx);
-          cerr << token.line << ':'
-               << token.column << ": error: unresolved variable \'"
-               << token.text
-               << "\'.\n";
           failed_to_parse = true;
+          t.report_error_start(variable.line_info);
+          t.report_error_print("variable '");
+          t.report_error_print(name);
+          t.report_error_print("' is not defined");
+          t.report_error_end();
         }
 
-      lookup(g, elem.second.var_idx) = view_to_string(elem.first);
+      auto &variable_name = g.grab_variable_name(variable.index);
+      variable_name = name;
     }
 
+  // Another exit if there are unresolved symbols.
   if (failed_to_parse)
     exit(EXIT_FAILURE);
 
@@ -306,190 +170,192 @@ parse_grammar(const char *str)
 }
 
 bool
-is_variable(uint32_t symbol)
+is_variable(SymbolType symbol)
 {
-  return symbol >= LOWEST_VAR_IDX;
+  return symbol >= FIRST_RESERVED_SYMBOL_INDEX;
 }
 
-string
-rule_to_string(const Grammar &grammar,
-               const GrammarRule &rule)
+std::string
+rule_to_string(Grammar &grammar,
+               const Grammar::Rule &rule)
 {
   assert(rule.size() > 0 && is_variable(rule[0]));
 
-  string res = lookup(grammar, rule[0]);
-
-  res.push_back(':');
-  res.push_back(' ');
+  std::string result = grammar.grab_variable_name(rule[0]);
+  result.push_back(':');
+  result.push_back(' ');
 
   for (size_t i = 1; i + 1 < rule.size(); i++)
     {
-      uint32_t const elem = rule[i];
-
-      if (is_variable(elem))
-        res.append(lookup(grammar, elem));
+      auto symbol = rule[i];
+      if (is_variable(symbol))
+        result.append(grammar.grab_variable_name(symbol));
       else
-        res.push_back((char)elem);
+        result.push_back((TerminalType)symbol);
     }
 
-  return res;
-}
-
-uint32_t
-symbol_at_dot(const Item &item)
-{
-  return (*item.rule)[item.dot];
-}
-
-bool
-are_items_different(const Item &left, const Item &right)
-{
-  return left.rule != right.rule || left.dot != right.dot;
+  return result;
 }
 
 bool
 ItemIsLess::operator()(const Item &left,
                        const Item &right) const
 {
-  uint32_t const sym_left = symbol_at_dot(left);
-  uint32_t const sym_right = symbol_at_dot(right);
+  auto lsymbol = left.symbol_at_dot();
+  auto rsymbol = right.symbol_at_dot();
 
-  if (sym_left == sym_right)
+  if (lsymbol == rsymbol)
     {
-      if (left.dot == right.dot)
+      if (left.dot_index == right.dot_index)
         return left.rule < right.rule;
       else
-        return left.dot < right.dot;
+        return left.dot_index < right.dot_index;
     }
   else
     {
-      return sym_left < sym_right;
+      return lsymbol < rsymbol;
     }
 }
 
 void
-compute_closure(const Grammar &grammar,
-                ItemSet &item_set)
+compute_closure(Grammar &grammar,
+                ItemSet &itemset)
 {
-  vector<uint32_t> to_visit;
+  using Iterator = typename std::set<SymbolType>::iterator;
 
-  auto const should_visit
-    = [](uint32_t symbol,
-         const vector<uint32_t> &to_visit) -> bool
+  // Keep track of order in which elements were inserted.
+  std::set<SymbolType> to_visit = { };
+  std::list<Iterator> order = { };
+
+  auto const insert =
+    [&to_visit, &order](SymbolType symbol) -> void
     {
-      for (uint32_t elem: to_visit)
-        if (elem == symbol)
-          return false;
-
-      return true;
+      if (is_variable(symbol))
+        {
+          auto [it, was_inserted] = to_visit.insert(symbol);
+          if (was_inserted)
+            order.push_back(it);
+        }
     };
 
-  for (const auto &item: item_set)
-    {
-      uint32_t const symbol = symbol_at_dot(item);
-      if (is_variable(symbol) && should_visit(symbol, to_visit))
-        to_visit.push_back(symbol);
-    }
+  for (auto &item: itemset)
+    insert(item.symbol_at_dot());
 
-  for (size_t i = 0; i < to_visit.size(); i++)
+  for (auto &sit: order)
     {
-      uint32_t const symbol = to_visit[i];
+      auto symbol = *sit;
 
-      for (auto it = grammar.rules.lower_bound({ symbol });
+      for (auto it = grammar.find_first_rule(symbol);
            it != grammar.rules.end() && (*it)[0] == symbol;
            it++)
         {
-          item_set.emplace(Item{ &(*it), 1 });
-
-          uint32_t const new_candidate = (*it)[1];
-          if (is_variable(new_candidate) && should_visit(new_candidate, to_visit))
-            to_visit.push_back(new_candidate);
+          Item item;
+          item.rule = (Grammar::Rule *)&(*it);
+          item.dot_index = 1;
+          itemset.insert(item);
+          insert(item.symbol_at_dot());
         }
     }
 }
 
 ParsingTable
-find_item_sets(const Grammar &grammar)
+compute_parsing_table(Grammar &grammar)
 {
-  auto const shift_dot
-    = [](const Item &item) -> Item
-    {
-      return { item.rule, item.dot + ((*item.rule)[item.dot] != 0) };
-    };
+  assert(!grammar.rules.empty());
 
-  auto const are_item_sets_equal
-    = [](const ItemSet &left, const ItemSet &right) -> bool
-    {
-      if (left.size() != right.size())
-        return false;
+  ParsingTable table = { };
+  StateId next_state_id = 0;
 
-      for (auto lit = left.begin(), rit = right.begin();
-           lit != left.end();
-           lit++, rit++)
+  auto const insert =
+    [&table, &next_state_id](State &&state) -> State *
+    {
+      State *state_ptr = nullptr;
+
+      for (auto &self: table)
         {
-          if (are_items_different(*lit, *rit))
-            return false;
+          if (self.itemset == state.itemset)
+            {
+              state_ptr = &self;
+              break;
+            }
         }
 
-      return true;
+      if (state_ptr == nullptr)
+        {
+          table.push_back(state);
+          next_state_id++;
+          state_ptr = &table.back();
+        }
+
+      return state_ptr;
     };
 
-  if (grammar.rules.empty())
-    return { };
+  {
+    Item item;
+    item.rule = (Grammar::Rule *)&(*grammar.rules.begin());
+    item.dot_index = 1;
 
-  ParsingTable table;
+    State state = { };
+    state.id = next_state_id;
+    state.itemset.insert(item);
+    compute_closure(grammar, state.itemset);
 
-  table.push_back({ { { &(*grammar.rules.begin()), 1 } }, { } });
-  compute_closure(grammar, table[0].itemset);
+    insert(std::move(state));
+  }
 
-  for (size_t i = 0; i < table.size(); i++)
+  for (auto &state: table)
     {
-      auto *item_set = &table[i].itemset;
+      auto &itemset = state.itemset;
+      auto it = itemset.begin();
 
-      for (auto it = item_set->begin(); it != item_set->end(); )
+      while (it != itemset.end())
         {
-          if (symbol_at_dot(*it) == 0)
+          if (it->symbol_at_dot() == SYMBOL_END)
             {
-              auto &actions = table[i].actions;
-              while (it != item_set->end() && symbol_at_dot(*it) == 0)
+              auto &actions = state.actions;
+              do
                 {
-                  actions.push_back({ Action_Reduce, 0, 0, it->rule });
+                  Action action = { };
+                  action.type = Action_Reduce;
+                  action.as.reduce = { it->rule };
+                  actions.push_back(action);
                   it++;
                 }
+              while (it != itemset.end() && it->symbol_at_dot() == SYMBOL_END);
             }
 
-          while (it != item_set->end())
+          while (it != itemset.end())
             {
-              uint32_t const shift_symbol = symbol_at_dot(*it);
+              auto shift_symbol = it->symbol_at_dot();
 
-              table.push_back({ { }, { } });
-              // Update reference in case of reallocation.
-              item_set = &table[i].itemset;
+              State new_state = { };
+              new_state.id = next_state_id;
 
-              while (it != item_set->end()
-                     && symbol_at_dot(*it) == shift_symbol)
+              do
                 {
-                  table.back().itemset.insert(shift_dot(*it));
+                  new_state.itemset.insert(it->shift_dot());
                   it++;
                 }
+              while (it != itemset.end()
+                     && it->symbol_at_dot() == shift_symbol);
 
-              compute_closure(grammar, table.back().itemset);
+              compute_closure(grammar, new_state.itemset);
 
-              uint32_t where_to_transition = table.size() - 1;
-              for (size_t j = 0; j + 1 < table.size(); j++)
+              auto where_to_transition = insert(std::move(new_state));
+              Action action;
+
+              if (is_variable(shift_symbol))
                 {
-                  if (are_item_sets_equal(table[j].itemset, table.back().itemset))
-                    {
-                      table.pop_back();
-                      where_to_transition = j;
-                      break;
-                    }
+                  action.type = Action_Go_To;
+                  action.as.go_to = { shift_symbol, where_to_transition };
+                }
+              else
+                {
+                  action.type = Action_Shift;
+                  action.as.shift = { (TerminalType)shift_symbol, where_to_transition };
                 }
 
-              table[i].actions.push_back({ is_variable(shift_symbol) ? Action_Goto : Action_Shift,
-                  shift_symbol,
-                  where_to_transition,
-                  nullptr });
+              state.actions.push_back(action);
             }
         }
     }
