@@ -284,7 +284,6 @@ struct State;
 enum ActionType
   {
     Action_Shift,
-    Action_Go_To,
     Action_Reduce,
   };
 
@@ -295,15 +294,9 @@ struct Action
   {
     struct
     {
-      TerminalType label;
-      State *item;
-    } shift;
-
-    struct
-    {
       SymbolType label;
       State *item;
-    } go_to;
+    } shift;
 
     struct
     {
@@ -316,9 +309,14 @@ using StateId = uint32_t;
 
 struct State
 {
+  constexpr static uint8_t HAS_SHIFT = 0x1;
+  constexpr static uint8_t HAS_REDUCE = 0x2;
+  constexpr static uint8_t HAS_SHIFT_REDUCE = HAS_SHIFT | HAS_REDUCE;
+
   ItemSet itemset;
   std::list<Action> actions;
-  StateId id;
+  StateId id = 0;
+  uint8_t flags = 0;
 };
 
 using ParsingTable = std::list<State>;

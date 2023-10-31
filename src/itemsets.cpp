@@ -315,6 +315,7 @@ compute_parsing_table(Grammar &grammar)
               auto &actions = state.actions;
               do
                 {
+                  state.flags |= State::HAS_REDUCE;
                   Action action = { };
                   action.type = Action_Reduce;
                   action.as.reduce = { it->rule };
@@ -342,23 +343,91 @@ compute_parsing_table(Grammar &grammar)
               compute_closure(grammar, new_state.itemset);
 
               auto where_to_transition = insert(std::move(new_state));
+
+              state.flags |= State::HAS_SHIFT;
               Action action;
-
-              if (is_variable(shift_symbol))
-                {
-                  action.type = Action_Go_To;
-                  action.as.go_to = { shift_symbol, where_to_transition };
-                }
-              else
-                {
-                  action.type = Action_Shift;
-                  action.as.shift = { (TerminalType)shift_symbol, where_to_transition };
-                }
-
+              action.type = Action_Shift;
+              action.as.shift = { shift_symbol, where_to_transition };
               state.actions.push_back(action);
             }
         }
     }
 
   return table;
+}
+
+Action &
+find_action(ActionType type, std::list<Action> &actions)
+{
+  for (auto &action: actions)
+    if (action.type == type)
+      return action;
+
+  assert(false);
+}
+
+Action *
+find_action(ActionType type, std::list<Action> &actions, SymbolType symbol)
+{
+  for (auto &action: actions)
+    if (action.type == type && action.as.shift.label == symbol)
+      return &action;
+
+  return nullptr;
+}
+
+bool
+matches(ParsingTable &table, std::string_view string)
+{
+  std::vector<SymbolType> symbols;
+  std::stack<State *> trace;
+  auto state = &table.front();
+
+  symbols.resize(string.size() + 1);
+  symbols[0] = SYMBOL_END;
+  std::copy(string.rbegin(), string.rend(), symbols.begin() + 1);
+
+  do
+    {
+      // TODO: need to check for reduce/reduce conflicts.
+      assert((state->flags & State::HAS_SHIFT_REDUCE) != State::HAS_SHIFT_REDUCE);
+
+      if (state->flags & State::HAS_REDUCE)
+        {
+          auto &action = find_action(Action_Reduce, state->actions);
+          auto &rule = *action.as.reduce.to_rule;
+
+          // Account for first symbol (variable definition) and last symbol (null terminator).
+          for (size_t i = rule.size() - 1 - 1; i-- > 1; )
+            trace.pop();
+
+          auto backtrack_state = trace.top();
+          trace.pop();
+
+          symbols.push_back(rule[0]);
+          state = backtrack_state;
+        }
+      else
+        {
+          auto symbol = symbols.back();
+          symbols.pop_back();
+
+          if (symbol == SYMBOL_END)
+            return false;
+          else if (symbol == FIRST_RESERVED_SYMBOL_INDEX)
+            return trace.empty() && symbols.back() == SYMBOL_END;
+          else
+            {
+              auto action = find_action(Action_Shift, state->actions, symbol);
+              if (action == nullptr)
+                return false;
+
+              trace.push(state);
+              state = action->as.shift.item;
+            }
+        }
+    }
+  while (true);
+
+  return false;
 }

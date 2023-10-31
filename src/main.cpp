@@ -1,5 +1,6 @@
 #include <iostream>
 #include <vector>
+#include <stack>
 #include <string>
 #include <list>
 #include <set>
@@ -16,44 +17,74 @@
 #include "itemsets.hpp"
 #include "itemsets.cpp"
 
+void print_grammar(Grammar &grammar);
+void print_pushdown_automaton(Grammar &grammar, ParsingTable &table);
+
 int
 main(int argc, char **argv)
 {
-  if (argc != 2)
+  if (argc < 2)
     {
-      std::cerr << "error: the number of arguments should be 2.\n";
+      std::cerr << "error: the number of arguments should be at least 2.\n";
       return EXIT_FAILURE;
     }
 
   auto grammar = parse_context_free_grammar(argv[1]);
-  auto states = compute_parsing_table(grammar);
+  auto table = compute_parsing_table(grammar);
 
-  std::cout << "Grammar:\n";
-  for (auto &rule: grammar.rules)
-    std::cout << "  " << rule_to_string(grammar, rule) << '\n';
-  std::cout << '\n';
-
-  for (auto &state: states)
+  for (int i = 2; i < argc; i++)
     {
-      std::cout << "State " << state.id << ":\n  ";
+      auto result = matches(table, argv[i]);
+      std::cout << argv[i] << ": ";
+      std::cout << (result ? "accepted" : "rejected") << '\n';
+    }
+
+  print_grammar(grammar);
+  print_pushdown_automaton(grammar, table);
+}
+
+void
+print_grammar(Grammar &grammar)
+{
+  std::cout << "\nGrammar:\n";
+  for (auto &rule: grammar.rules)
+    std::cout << "    " << rule_to_string(grammar, rule) << '\n';
+  std::cout << '\n';
+}
+
+void
+print_pushdown_automaton(Grammar &grammar, ParsingTable &table)
+{
+  for (auto &state: table)
+    {
+      std::cout << "State " << state.id << ":\n    ";
       for (auto &actions: state.actions)
         {
           switch (actions.type)
             {
             case Action_Reduce:
-              std::cout << "r("
-                        << rule_to_string(grammar, *actions.as.reduce.to_rule)
-                        << ")";
+              {
+                std::cout << "r("
+                          << rule_to_string(grammar, *actions.as.reduce.to_rule)
+                          << ")";
+              }
+
               break;
             case Action_Shift:
-              std::cout << '\''
-                        << actions.as.shift.label
-                        << "\' -> s"
-                        << actions.as.shift.item->id;
-              break;
-            case Action_Go_To:
-              std::cout << grammar.grab_variable_name(actions.as.go_to.label)
-                        << " -> g" << actions.as.go_to.item->id;
+              {
+                auto symbol = actions.as.shift.label;
+
+                std::cout << '\'';
+
+                if (is_variable(symbol))
+                  std::cout << grammar.grab_variable_name(symbol);
+                else
+                  std::cout << (TerminalType)symbol;
+
+                std::cout << "\' -> s"
+                          << actions.as.shift.item->id;
+              }
+
               break;
             }
 
