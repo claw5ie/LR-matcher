@@ -1,204 +1,74 @@
-Grammar
-parse_context_free_grammar(const char *string)
+struct Item
 {
-  struct VariableInfo
+  Grammar::Rule *rule;
+  size_t dot_index;
+
+  SymbolType symbol_at_dot() const
   {
-    LineInfo line_info;
-    SymbolType index;
-    bool is_defined;
+    return (*rule)[dot_index];
+  }
+
+  Item shift_dot() const
+  {
+    auto result = *this;
+    result.dot_index += (symbol_at_dot() != SYMBOL_END);
+    return result;
+  }
+
+  bool operator==(const Item &other) const
+  {
+    return this->dot_index == other.dot_index && this->rule == other.rule;
+  }
+};
+
+struct ItemIsLess
+{
+  bool operator()(const Item &, const Item &) const;
+};
+
+using ItemSet = std::set<Item, ItemIsLess>;
+
+struct State;
+
+enum ActionType
+  {
+    Action_Shift,
+    Action_Reduce,
   };
 
-  using VariableTable = std::map<std::string_view, VariableInfo>;
-
-  auto t = Tokenizer{ };
-  auto g = Grammar{ };
-  auto variables = VariableTable{ };
-  auto next_symbol_index = FIRST_USER_SYMBOL;
-  auto failed_to_parse = false;
-
-  t.source = string;
-
-  do
-    {
-      if (t.peek() != Token_Variable)
-        {
-          failed_to_parse = true;
-
-          auto line_info = t.grab().line_info;
-          t.report_error_start(line_info);
-          t.report_error_print("expected a variable to start production");
-          t.report_error_end();
-
-          // Skip to next production.
-          if (t.peek(1) != Token_Colon)
-            {
-              t.skip_to_next_semicolon();
-              if (t.peek() == Token_Semicolon)
-                t.advance();
-              continue;
-            }
-        }
-
-      SymbolType variable_definition_index = 0;
-
-      {
-        auto token = t.grab();
-        t.advance();
-
-        auto info = VariableInfo{ };
-        info.line_info = token.line_info;
-        info.index = next_symbol_index;
-        info.is_defined = true;
-
-        auto [it, was_inserted] = variables.emplace(token.text, info);
-        auto &[key, value] = *it;
-        next_symbol_index += was_inserted;
-
-        variable_definition_index = value.index;
-        value.is_defined = true;
-      }
-
-      if (!t.expect(Token_Colon))
-        {
-          failed_to_parse = true;
-
-          auto token = t.grab();
-          t.report_error_start(token.line_info);
-          t.report_error_print("expected ':' before '");
-          t.report_error_print(token.text);
-          t.report_error_print("'");
-          t.report_error_end();
-        }
-
-      do
-        {
-          auto rule = Grammar::Rule{ };
-          rule.push_back(variable_definition_index);
-
-          do
-            {
-              auto tt = t.peek();
-              switch (tt)
-                {
-                case Token_Variable:
-                  {
-                    auto token = t.grab();
-                    auto info = VariableInfo{ };
-                    info.line_info = token.line_info;
-                    info.index = next_symbol_index;
-                    info.is_defined = false;
-
-                    auto [it, was_inserted] = variables.emplace(token.text, info);
-                    auto &[key, value] = *it;
-                    next_symbol_index += was_inserted;
-
-                    rule.push_back(value.index);
-                  }
-
-                  break;
-                case Token_Terminals_Sequence:
-                  {
-                    auto text = t.grab().text;
-                    for (size_t i = 0; i < text.size(); i++)
-                      {
-                        i += (text[i] == '\\');
-                        rule.push_back(text[i]);
-                      }
-                  }
-
-                  break;
-                case Token_Colon:
-                  {
-                    failed_to_parse = true;
-
-                    auto line_info = t.grab().line_info;
-                    t.report_error_start(line_info);
-                    t.report_error_print("expected variable or terminal, not colon (':')");
-                    t.report_error_end();
-                    t.skip_to_next_semicolon();
-                  }
-
-                  [[fallthrough]];
-                default:
-                  goto finish_parsing_sequence_of_terminals_and_variables;
-                }
-
-              t.advance();
-              tt = t.peek();
-            }
-          while (true);
-        finish_parsing_sequence_of_terminals_and_variables:
-
-          rule.push_back(SYMBOL_END);
-          g.rules.insert(std::move(rule));
-        }
-      while (t.expect(Token_Bar));
-
-      if (t.peek() == Token_Semicolon)
-        t.advance();
-    }
-  while (t.peek() != Token_End_Of_File);
-
-  if (failed_to_parse)
-    exit(EXIT_FAILURE);
-
-  g.lookup.resize(variables.size() + 1);
-  g.rules.insert({
-      FIRST_RESERVED_SYMBOL,
-      FIRST_USER_SYMBOL,
-      SYMBOL_END,
-    });
-  g.lookup[0] = "start";
-
-  for (auto &[name, variable]: variables)
-    {
-      if (!variable.is_defined)
-        {
-          failed_to_parse = true;
-          t.report_error_start(variable.line_info);
-          t.report_error_print("variable '");
-          t.report_error_print(name);
-          t.report_error_print("' is not defined");
-          t.report_error_end();
-        }
-
-      auto &variable_name = g.grab_variable_name(variable.index);
-      variable_name = name;
-    }
-
-  // Another exit if there are not defined symbols.
-  if (failed_to_parse)
-    exit(EXIT_FAILURE);
-
-  return g;
-}
-
-bool
-is_variable(SymbolType symbol)
+struct Action
 {
-  return symbol >= FIRST_RESERVED_SYMBOL;
-}
-
-std::string
-rule_to_string(Grammar &grammar, const Grammar::Rule &rule)
-{
-  assert(rule.size() > 0 && is_variable(rule[0]));
-
-  auto result = grammar.grab_variable_name(rule[0]);
-  result.push_back(':');
-  result.push_back(' ');
-
-  for (size_t i = 1; i + 1 < rule.size(); i++)
+  ActionType type;
+  union
+  {
+    struct
     {
-      auto symbol = rule[i];
-      if (is_variable(symbol))
-        result.append(grammar.grab_variable_name(symbol));
-      else
-        result.push_back((TerminalType)symbol);
-    }
+      SymbolType label;
+      State *item;
+    } shift;
 
-  return result;
-}
+    struct
+    {
+      Grammar::Rule *to_rule;
+    } reduce;
+  } as;
+};
+
+using StateId = uint32_t;
+
+struct State
+{
+  constexpr static uint8_t HAS_SHIFT = 0x1;
+  constexpr static uint8_t HAS_REDUCE = 0x2;
+  constexpr static uint8_t HAS_SHIFT_REDUCE = HAS_SHIFT | HAS_REDUCE;
+
+  ItemSet itemset;
+  std::list<Action> actions;
+  StateId id = 0;
+  uint8_t flags = 0;
+};
+
+using ParsingTable = std::list<State>;
 
 bool
 ItemIsLess::operator()(const Item &left, const Item &right) const
