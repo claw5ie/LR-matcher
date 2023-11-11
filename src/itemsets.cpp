@@ -8,20 +8,22 @@ parse_context_free_grammar(const char *string)
     bool is_defined;
   };
 
-  Tokenizer t = { };
-  t.source = string;
+  using VariableTable = std::map<std::string_view, VariableInfo>;
 
-  Grammar g = { };
-  std::map<std::string_view, VariableInfo> variables;
-
+  auto t = Tokenizer{ };
+  auto g = Grammar{ };
+  auto variables = VariableTable{ };
   auto next_symbol_index = FIRST_USER_SYMBOL;
   auto failed_to_parse = false;
+
+  t.source = string;
 
   do
     {
       if (t.peek() != Token_Variable)
         {
           failed_to_parse = true;
+
           auto line_info = t.grab().line_info;
           t.report_error_start(line_info);
           t.report_error_print("expected a variable to start production");
@@ -43,7 +45,7 @@ parse_context_free_grammar(const char *string)
         auto token = t.grab();
         t.advance();
 
-        VariableInfo info;
+        auto info = VariableInfo{ };
         info.line_info = token.line_info;
         info.index = next_symbol_index;
         info.is_defined = true;
@@ -59,6 +61,7 @@ parse_context_free_grammar(const char *string)
       if (!t.expect(Token_Colon))
         {
           failed_to_parse = true;
+
           auto token = t.grab();
           t.report_error_start(token.line_info);
           t.report_error_print("expected ':' before '");
@@ -69,7 +72,7 @@ parse_context_free_grammar(const char *string)
 
       do
         {
-          Grammar::Rule rule = { };
+          auto rule = Grammar::Rule{ };
           rule.push_back(variable_definition_index);
 
           do
@@ -80,7 +83,7 @@ parse_context_free_grammar(const char *string)
                 case Token_Variable:
                   {
                     auto token = t.grab();
-                    VariableInfo info;
+                    auto info = VariableInfo{ };
                     info.line_info = token.line_info;
                     info.index = next_symbol_index;
                     info.is_defined = false;
@@ -107,6 +110,7 @@ parse_context_free_grammar(const char *string)
                 case Token_Colon:
                   {
                     failed_to_parse = true;
+
                     auto line_info = t.grab().line_info;
                     t.report_error_start(line_info);
                     t.report_error_print("expected variable or terminal, not colon (':')");
@@ -180,7 +184,7 @@ rule_to_string(Grammar &grammar, const Grammar::Rule &rule)
 {
   assert(rule.size() > 0 && is_variable(rule[0]));
 
-  std::string result = grammar.grab_variable_name(rule[0]);
+  auto result = grammar.grab_variable_name(rule[0]);
   result.push_back(':');
   result.push_back(' ');
 
@@ -197,8 +201,7 @@ rule_to_string(Grammar &grammar, const Grammar::Rule &rule)
 }
 
 bool
-ItemIsLess::operator()(const Item &left,
-                       const Item &right) const
+ItemIsLess::operator()(const Item &left, const Item &right) const
 {
   auto lsymbol = left.symbol_at_dot();
   auto rsymbol = right.symbol_at_dot();
@@ -222,8 +225,8 @@ compute_closure(Grammar &grammar, ItemSet &itemset)
   using Iterator = typename std::set<SymbolType>::iterator;
 
   // Keep track of order in which elements were inserted.
-  std::set<SymbolType> to_visit = { };
-  std::list<Iterator> order = { };
+  auto to_visit = std::set<SymbolType>{ };
+  auto order = std::list<Iterator>{ };
 
   auto const insert =
     [&to_visit, &order](SymbolType symbol) -> void
@@ -261,8 +264,8 @@ compute_parsing_table(Grammar &grammar)
 {
   assert(!grammar.rules.empty());
 
-  ParsingTable table = { };
-  StateId next_state_id = 0;
+  auto table = ParsingTable{ };
+  auto next_state_id = StateId{ 0 };
 
   auto const insert =
     [&table, &next_state_id](State &&state) -> State *
@@ -289,11 +292,11 @@ compute_parsing_table(Grammar &grammar)
     };
 
   {
-    Item item;
+    auto item = Item{ };
     item.rule = (Grammar::Rule *)&(*grammar.rules.begin());
     item.dot_index = 1;
 
-    State state = { };
+    auto state = State{ };
     state.id = next_state_id;
     state.itemset.insert(item);
     compute_closure(grammar, state.itemset);
@@ -314,7 +317,7 @@ compute_parsing_table(Grammar &grammar)
               do
                 {
                   state.flags |= State::HAS_REDUCE;
-                  Action action = { };
+                  auto action = Action{ };
                   action.type = Action_Reduce;
                   action.as.reduce = { it->rule };
                   actions.push_back(action);
@@ -326,8 +329,7 @@ compute_parsing_table(Grammar &grammar)
           while (it != itemset.end())
             {
               auto shift_symbol = it->symbol_at_dot();
-
-              State new_state = { };
+              auto new_state = State{ };
               new_state.id = next_state_id;
 
               do
@@ -343,7 +345,7 @@ compute_parsing_table(Grammar &grammar)
               auto where_to_transition = insert(std::move(new_state));
 
               state.flags |= State::HAS_SHIFT;
-              Action action;
+              auto action = Action{ };
               action.type = Action_Shift;
               action.as.shift = { shift_symbol, where_to_transition };
               state.actions.push_back(action);
@@ -377,8 +379,8 @@ find_action(ActionType type, std::list<Action> &actions, SymbolType symbol)
 bool
 matches(ParsingTable &table, std::string_view string)
 {
-  std::vector<SymbolType> symbols;
-  std::stack<State *> trace;
+  auto symbols = std::vector<SymbolType>{ };
+  auto trace = std::stack<State *>{ };
   auto state = &table.front();
 
   symbols.resize(string.size() + 1);

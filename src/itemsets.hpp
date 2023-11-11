@@ -136,7 +136,7 @@ struct Tokenizer
         at++;
       }
 
-    Token token;
+    auto token = Token{ };
     token.type = Token_End_Of_File;
     token.text = { at, 0 };
     token.line_info = line_info;
@@ -260,15 +260,14 @@ struct Item
 
   Item shift_dot() const
   {
-    Item result = *this;
+    auto result = *this;
     result.dot_index += (symbol_at_dot() != SYMBOL_END);
     return result;
   }
 
   bool operator==(const Item &other) const
   {
-    return this->dot_index == other.dot_index
-      && this->rule == other.rule;
+    return this->dot_index == other.dot_index && this->rule == other.rule;
   }
 };
 
