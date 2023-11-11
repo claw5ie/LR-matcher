@@ -6,8 +6,8 @@ using SymbolType = uint32_t;
 
 static_assert(sizeof(TerminalType) < sizeof(SymbolType));
 
-constexpr SymbolType FIRST_RESERVED_SYMBOL_INDEX = 1 << (sizeof(TerminalType) * CHAR_BIT);
-constexpr SymbolType FIRST_USER_SYMBOL_INDEX = FIRST_RESERVED_SYMBOL_INDEX + 1;
+constexpr SymbolType FIRST_RESERVED_SYMBOL = 1 << (sizeof(TerminalType) * CHAR_BIT);
+constexpr SymbolType FIRST_USER_SYMBOL = FIRST_RESERVED_SYMBOL + 1;
 constexpr SymbolType SYMBOL_END = 0;
 
 struct LineInfo
@@ -238,8 +238,8 @@ struct Grammar
 
   std::string &grab_variable_name(SymbolType index)
   {
-    assert(index >= FIRST_RESERVED_SYMBOL_INDEX);
-    return lookup[index - FIRST_RESERVED_SYMBOL_INDEX];
+    assert(index >= FIRST_RESERVED_SYMBOL);
+    return lookup[index - FIRST_RESERVED_SYMBOL];
   }
 
   std::set<Rule>::iterator find_first_rule(SymbolType symbol)

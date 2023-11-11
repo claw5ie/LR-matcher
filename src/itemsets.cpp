@@ -5,7 +5,7 @@ parse_context_free_grammar(const char *string)
   {
     LineInfo line_info;
     SymbolType index;
-    bool is_resolved;
+    bool is_defined;
   };
 
   Tokenizer t = { };
@@ -14,7 +14,7 @@ parse_context_free_grammar(const char *string)
   Grammar g = { };
   std::map<std::string_view, VariableInfo> variables;
 
-  auto next_symbol_index = FIRST_USER_SYMBOL_INDEX;
+  auto next_symbol_index = FIRST_USER_SYMBOL;
   auto failed_to_parse = false;
 
   do
@@ -46,14 +46,14 @@ parse_context_free_grammar(const char *string)
         VariableInfo info;
         info.line_info = token.line_info;
         info.index = next_symbol_index;
-        info.is_resolved = true;
+        info.is_defined = true;
 
         auto [it, was_inserted] = variables.emplace(token.text, info);
         auto &[key, value] = *it;
         next_symbol_index += was_inserted;
 
         variable_definition_index = value.index;
-        value.is_resolved = true;
+        value.is_defined = true;
       }
 
       if (!t.expect(Token_Colon))
@@ -83,7 +83,7 @@ parse_context_free_grammar(const char *string)
                     VariableInfo info;
                     info.line_info = token.line_info;
                     info.index = next_symbol_index;
-                    info.is_resolved = false;
+                    info.is_defined = false;
 
                     auto [it, was_inserted] = variables.emplace(token.text, info);
                     auto &[key, value] = *it;
@@ -140,15 +140,15 @@ parse_context_free_grammar(const char *string)
 
   g.lookup.resize(variables.size() + 1);
   g.rules.insert({
-      FIRST_RESERVED_SYMBOL_INDEX,
-      FIRST_USER_SYMBOL_INDEX,
+      FIRST_RESERVED_SYMBOL,
+      FIRST_USER_SYMBOL,
       SYMBOL_END,
     });
   g.lookup[0] = "start";
 
   for (auto &[name, variable]: variables)
     {
-      if (!variable.is_resolved)
+      if (!variable.is_defined)
         {
           failed_to_parse = true;
           t.report_error_start(variable.line_info);
@@ -162,7 +162,7 @@ parse_context_free_grammar(const char *string)
       variable_name = name;
     }
 
-  // Another exit if there are unresolved symbols.
+  // Another exit if there are not defined symbols.
   if (failed_to_parse)
     exit(EXIT_FAILURE);
 
@@ -172,12 +172,11 @@ parse_context_free_grammar(const char *string)
 bool
 is_variable(SymbolType symbol)
 {
-  return symbol >= FIRST_RESERVED_SYMBOL_INDEX;
+  return symbol >= FIRST_RESERVED_SYMBOL;
 }
 
 std::string
-rule_to_string(Grammar &grammar,
-               const Grammar::Rule &rule)
+rule_to_string(Grammar &grammar, const Grammar::Rule &rule)
 {
   assert(rule.size() > 0 && is_variable(rule[0]));
 
@@ -218,8 +217,7 @@ ItemIsLess::operator()(const Item &left,
 }
 
 void
-compute_closure(Grammar &grammar,
-                ItemSet &itemset)
+compute_closure(Grammar &grammar, ItemSet &itemset)
 {
   using Iterator = typename std::set<SymbolType>::iterator;
 
@@ -414,7 +412,7 @@ matches(ParsingTable &table, std::string_view string)
 
           if (symbol == SYMBOL_END)
             return false;
-          else if (symbol == FIRST_RESERVED_SYMBOL_INDEX)
+          else if (symbol == FIRST_RESERVED_SYMBOL)
             return trace.empty() && symbols.back() == SYMBOL_END;
           else
             {

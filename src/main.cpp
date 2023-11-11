@@ -81,7 +81,7 @@ print_pushdown_automaton(Grammar &grammar, ParsingTable &table)
                 else
                   std::cout << (TerminalType)symbol;
 
-                std::cout << "\' -> s"
+                std::cout << "\' -> "
                           << actions.as.shift.item->id;
               }
 
