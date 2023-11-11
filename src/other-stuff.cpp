@@ -17,7 +17,7 @@ print_pushdown_automaton(Grammar &grammar, ParsingTable &table)
         {
           switch (actions.type)
             {
-            case Action_Reduce:
+            case Action::Reduce:
               {
                 std::cout << "r("
                           << rule_to_string(grammar, *actions.as.reduce.to_rule)
@@ -25,7 +25,7 @@ print_pushdown_automaton(Grammar &grammar, ParsingTable &table)
               }
 
               break;
-            case Action_Shift:
+            case Action::Shift:
               {
                 auto symbol = actions.as.shift.label;
 

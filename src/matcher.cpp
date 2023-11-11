@@ -10,9 +10,13 @@ struct Item
 
   Item shift_dot() const
   {
-    auto result = *this;
-    result.dot_index += (symbol_at_dot() != SYMBOL_END);
-    return result;
+    auto index = this->dot_index;
+    index += (symbol_at_dot() != SYMBOL_END);
+
+    return Item{
+      .rule = rule,
+      .dot_index = index,
+    };
   }
 
   bool operator==(const Item &other) const
@@ -30,15 +34,16 @@ using ItemSet = std::set<Item, ItemIsLess>;
 
 struct State;
 
-enum ActionType
-  {
-    Action_Shift,
-    Action_Reduce,
-  };
-
 struct Action
 {
-  ActionType type;
+  enum Type
+    {
+      Shift,
+      Reduce,
+    };
+
+  Type type;
+
   union
   {
     struct
@@ -64,7 +69,7 @@ struct State
 
   ItemSet itemset;
   std::list<Action> actions;
-  StateId id = 0;
+  StateId id;
   uint8_t flags = 0;
 };
 
@@ -120,9 +125,10 @@ compute_closure(Grammar &grammar, ItemSet &itemset)
            it != grammar.rules.end() && (*it)[0] == symbol;
            it++)
         {
-          Item item;
-          item.rule = (Grammar::Rule *)&(*it);
-          item.dot_index = 1;
+          auto item = Item{
+            .rule = (Grammar::Rule *)&(*it),
+            .dot_index = 1,
+          };
           itemset.insert(item);
           insert(item.symbol_at_dot());
         }
@@ -135,7 +141,7 @@ compute_parsing_table(Grammar &grammar)
   assert(!grammar.rules.empty());
 
   auto table = ParsingTable{ };
-  auto next_state_id = StateId{ 0 };
+  StateId next_state_id = 0;
 
   auto const insert =
     [&table, &next_state_id](State &&state) -> State *
@@ -162,12 +168,15 @@ compute_parsing_table(Grammar &grammar)
     };
 
   {
-    auto item = Item{ };
-    item.rule = (Grammar::Rule *)&(*grammar.rules.begin());
-    item.dot_index = 1;
-
-    auto state = State{ };
-    state.id = next_state_id;
+    auto item = Item{
+      .rule = (Grammar::Rule *)&(*grammar.rules.begin()),
+      .dot_index = 1,
+    };
+    auto state = State{
+      .itemset = { },
+      .actions = { },
+      .id = next_state_id,
+    };
     state.itemset.insert(item);
     compute_closure(grammar, state.itemset);
 
@@ -187,9 +196,12 @@ compute_parsing_table(Grammar &grammar)
               do
                 {
                   state.flags |= State::HAS_REDUCE;
-                  auto action = Action{ };
-                  action.type = Action_Reduce;
-                  action.as.reduce = { it->rule };
+                  auto action = Action{
+                    .type = Action::Reduce,
+                    .as = { .reduce = {
+                        .to_rule = it->rule,
+                      } },
+                  };
                   actions.push_back(action);
                   it++;
                 }
@@ -199,8 +211,11 @@ compute_parsing_table(Grammar &grammar)
           while (it != itemset.end())
             {
               auto shift_symbol = it->symbol_at_dot();
-              auto new_state = State{ };
-              new_state.id = next_state_id;
+              auto new_state = State{
+                .itemset = { },
+                .actions = { },
+                .id = next_state_id,
+              };
 
               do
                 {
@@ -215,9 +230,13 @@ compute_parsing_table(Grammar &grammar)
               auto where_to_transition = insert(std::move(new_state));
 
               state.flags |= State::HAS_SHIFT;
-              auto action = Action{ };
-              action.type = Action_Shift;
-              action.as.shift = { shift_symbol, where_to_transition };
+              auto action = Action{
+                .type = Action::Shift,
+                .as = { .shift = {
+                    .label = shift_symbol,
+                    .item = where_to_transition,
+                  } },
+              };
               state.actions.push_back(action);
             }
         }
@@ -226,18 +245,18 @@ compute_parsing_table(Grammar &grammar)
   return table;
 }
 
-Action &
-find_action(ActionType type, std::list<Action> &actions)
+Action *
+find_action(Action::Type type, std::list<Action> &actions)
 {
   for (auto &action: actions)
     if (action.type == type)
-      return action;
+      return &action;
 
   assert(false);
 }
 
 Action *
-find_action(ActionType type, std::list<Action> &actions, SymbolType symbol)
+find_action(Action::Type type, std::list<Action> &actions, SymbolType symbol)
 {
   for (auto &action: actions)
     if (action.type == type && action.as.shift.label == symbol)
@@ -264,8 +283,8 @@ matches(ParsingTable &table, std::string_view string)
 
       if (state->flags & State::HAS_REDUCE)
         {
-          auto &action = find_action(Action_Reduce, state->actions);
-          auto &rule = *action.as.reduce.to_rule;
+          auto action = find_action(Action::Reduce, state->actions);
+          auto &rule = *action->as.reduce.to_rule;
 
           // Account for first symbol (variable definition) and last symbol (null terminator).
           for (size_t i = rule.size() - 1 - 1; i-- > 1; )
@@ -288,7 +307,7 @@ matches(ParsingTable &table, std::string_view string)
             return trace.empty() && symbols.back() == SYMBOL_END;
           else
             {
-              auto action = find_action(Action_Shift, state->actions, symbol);
+              auto action = find_action(Action::Shift, state->actions, symbol);
               if (action == nullptr)
                 return false;
 

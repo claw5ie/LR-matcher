@@ -24,10 +24,10 @@ struct Tokenizer
 {
   constexpr static uint8_t LOOKAHEAD = 2;
 
-  Token tokens_buffer[LOOKAHEAD];
+  Token tokens_buffer[LOOKAHEAD] = { };
   uint8_t token_start = 0;
   uint8_t token_count = 0;
-  LineInfo line_info;
+  LineInfo line_info = { };
   const char *source;
 
   static inline
@@ -124,10 +124,11 @@ struct Tokenizer
         at++;
       }
 
-    auto token = Token{ };
-    token.type = Token_End_Of_File;
-    token.text = { at, 0 };
-    token.line_info = line_info;
+    auto token = Token{
+      .type = Token_End_Of_File,
+      .text = { at, 0 },
+      .line_info = line_info,
+    };
 
     switch (*at)
       {

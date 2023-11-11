@@ -39,13 +39,13 @@ parse_context_free_grammar(const char *string)
 
   using VariableTable = std::map<std::string_view, VariableInfo>;
 
-  auto t = Tokenizer{ };
+  auto t = Tokenizer{
+    .source = string,
+  };
   auto g = Grammar{ };
   auto variables = VariableTable{ };
   auto next_symbol_index = FIRST_USER_SYMBOL;
   auto failed_to_parse = false;
-
-  t.source = string;
 
   do
     {
@@ -74,11 +74,11 @@ parse_context_free_grammar(const char *string)
         auto token = t.grab();
         t.advance();
 
-        auto info = VariableInfo{ };
-        info.line_info = token.line_info;
-        info.index = next_symbol_index;
-        info.is_defined = true;
-
+        auto info = VariableInfo{
+          .line_info = token.line_info,
+          .index = next_symbol_index,
+          .is_defined = true,
+        };
         auto [it, was_inserted] = variables.emplace(token.text, info);
         auto &[key, value] = *it;
         next_symbol_index += was_inserted;
@@ -112,11 +112,11 @@ parse_context_free_grammar(const char *string)
                 case Token_Variable:
                   {
                     auto token = t.grab();
-                    auto info = VariableInfo{ };
-                    info.line_info = token.line_info;
-                    info.index = next_symbol_index;
-                    info.is_defined = false;
-
+                    auto info = VariableInfo{
+                      .line_info = token.line_info,
+                      .index = next_symbol_index,
+                      .is_defined = false,
+                    };
                     auto [it, was_inserted] = variables.emplace(token.text, info);
                     auto &[key, value] = *it;
                     next_symbol_index += was_inserted;
