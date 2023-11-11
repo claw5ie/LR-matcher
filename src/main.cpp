@@ -30,11 +30,14 @@ main(int argc, char **argv)
 
   auto grammar = parse_context_free_grammar(argv[1]);
   auto table = compute_parsing_table(grammar);
+  auto pda = PDA{ };
 
   for (int i = 2; i < argc; i++)
     {
-      auto result = matches(table, argv[i]);
-      std::cout << argv[i] << ": ";
+      pda.setup(table, argv[i]);
+
+      auto result = pda.match();
+      std::cout << "'" << argv[i] << "': ";
       std::cout << (result ? "accepted" : "rejected") << '\n';
     }
 

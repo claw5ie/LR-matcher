@@ -75,6 +75,141 @@ struct State
 
 using ParsingTable = std::list<State>;
 
+Action *
+find_action(Action::Type type, std::list<Action> &actions)
+{
+  for (auto &action: actions)
+    if (action.type == type)
+      return &action;
+
+  assert(false);
+}
+
+Action *
+find_action(Action::Type type, std::list<Action> &actions, SymbolType symbol)
+{
+  for (auto &action: actions)
+    if (action.type == type && action.as.shift.label == symbol)
+      return &action;
+
+  return nullptr;
+}
+
+struct PDAStepResult
+{
+  enum Type
+    {
+      Reject,
+      Accept,
+      None,
+    };
+
+  Action *action;
+  Type type;
+};
+
+struct PDA
+{
+  ParsingTable *table = nullptr;
+  State *state = nullptr;
+  std::vector<SymbolType> symbols;
+  std::deque<State *> trace;
+
+  void setup(ParsingTable &table, std::string_view string)
+  {
+    this->table = &table;
+    symbols.resize(string.size());
+    std::copy(string.rbegin(), string.rend(), symbols.begin());
+    trace.clear();
+    state = &table.front();
+  }
+
+  bool match()
+  {
+    assert(table != nullptr && state != nullptr);
+
+    do
+      {
+        auto [_, type] = step();
+        switch (type)
+          {
+          case PDAStepResult::Reject: return false;
+          case PDAStepResult::Accept: return true;
+          case PDAStepResult::None:   break;
+          }
+      }
+    while (true);
+  }
+
+  PDAStepResult step()
+  {
+    // TODO: need to check for reduce/reduce conflicts.
+    assert((state->flags & State::HAS_SHIFT_REDUCE) != State::HAS_SHIFT_REDUCE);
+
+    if (state->flags & State::HAS_REDUCE)
+      {
+        auto action = find_action(Action::Reduce, state->actions);
+        auto &rule = *action->as.reduce.to_rule;
+
+        // Account for first symbol (variable definition) and last symbol (null terminator).
+        for (size_t i = rule.size() - 1 - 1; i-- > 1; )
+          trace.pop_back();
+
+        auto backtrack_state = trace.back();
+        trace.pop_back();
+
+        symbols.push_back(rule[0]);
+        state = backtrack_state;
+
+        return {
+          .action = action,
+          .type = PDAStepResult::None,
+        };
+      }
+    else if (symbols.empty())
+      {
+        return {
+          .action = nullptr,
+          .type = PDAStepResult::Reject,
+        };
+      }
+    else
+      {
+        auto symbol = symbols.back();
+        symbols.pop_back();
+
+        if (symbol == FIRST_RESERVED_SYMBOL)
+          {
+            auto type = trace.empty() && symbols.empty()
+              ? PDAStepResult::Accept : PDAStepResult::Reject;
+            return {
+              .action = nullptr,
+              .type = type,
+            };
+          }
+        else
+          {
+            auto action = find_action(Action::Shift, state->actions, symbol);
+            if (action == nullptr)
+              {
+                return {
+                  .action = nullptr,
+                  .type = PDAStepResult::Reject,
+                };
+              }
+
+            trace.push_back(state);
+            state = action->as.shift.item;
+
+            return {
+              .action = action,
+              .type = PDAStepResult::None,
+            };
+          }
+      }
+  }
+};
+
 bool
 ItemIsLess::operator()(const Item &left, const Item &right) const
 {
@@ -243,80 +378,4 @@ compute_parsing_table(Grammar &grammar)
     }
 
   return table;
-}
-
-Action *
-find_action(Action::Type type, std::list<Action> &actions)
-{
-  for (auto &action: actions)
-    if (action.type == type)
-      return &action;
-
-  assert(false);
-}
-
-Action *
-find_action(Action::Type type, std::list<Action> &actions, SymbolType symbol)
-{
-  for (auto &action: actions)
-    if (action.type == type && action.as.shift.label == symbol)
-      return &action;
-
-  return nullptr;
-}
-
-bool
-matches(ParsingTable &table, std::string_view string)
-{
-  auto symbols = std::vector<SymbolType>{ };
-  auto trace = std::stack<State *>{ };
-  auto state = &table.front();
-
-  symbols.resize(string.size() + 1);
-  symbols[0] = SYMBOL_END;
-  std::copy(string.rbegin(), string.rend(), symbols.begin() + 1);
-
-  do
-    {
-      // TODO: need to check for reduce/reduce conflicts.
-      assert((state->flags & State::HAS_SHIFT_REDUCE) != State::HAS_SHIFT_REDUCE);
-
-      if (state->flags & State::HAS_REDUCE)
-        {
-          auto action = find_action(Action::Reduce, state->actions);
-          auto &rule = *action->as.reduce.to_rule;
-
-          // Account for first symbol (variable definition) and last symbol (null terminator).
-          for (size_t i = rule.size() - 1 - 1; i-- > 1; )
-            trace.pop();
-
-          auto backtrack_state = trace.top();
-          trace.pop();
-
-          symbols.push_back(rule[0]);
-          state = backtrack_state;
-        }
-      else
-        {
-          auto symbol = symbols.back();
-          symbols.pop_back();
-
-          if (symbol == SYMBOL_END)
-            return false;
-          else if (symbol == FIRST_RESERVED_SYMBOL)
-            return trace.empty() && symbols.back() == SYMBOL_END;
-          else
-            {
-              auto action = find_action(Action::Shift, state->actions, symbol);
-              if (action == nullptr)
-                return false;
-
-              trace.push(state);
-              state = action->as.shift.item;
-            }
-        }
-    }
-  while (true);
-
-  return false;
 }
