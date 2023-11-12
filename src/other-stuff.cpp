@@ -1,7 +1,27 @@
+std::string
+rule_to_string(Grammar &grammar, const Grammar::Rule &rule)
+{
+  assert(rule.size() > 0 && is_variable(rule[0]));
+
+  auto result = grammar.grab_variable_name(rule[0]);
+  result.append(": ");
+
+  for (size_t i = 1; i + 1 < rule.size(); i++)
+    {
+      auto symbol = rule[i];
+      if (is_variable(symbol))
+        result.append(grammar.grab_variable_name(symbol));
+      else
+        result.push_back((TerminalType)symbol);
+    }
+
+  return result;
+}
+
 void
 print_grammar(Grammar &grammar)
 {
-  std::cout << "\nGrammar:\n";
+  std::cout << "\nAugmented grammar:\n";
   for (auto &rule: grammar.rules)
     std::cout << "    " << rule_to_string(grammar, rule) << '\n';
   std::cout << '\n';
@@ -29,14 +49,12 @@ print_pushdown_automaton(Grammar &grammar, ParsingTable &table)
               {
                 auto symbol = actions.as.shift.label;
 
-                std::cout << '\'';
-
                 if (is_variable(symbol))
                   std::cout << grammar.grab_variable_name(symbol);
                 else
-                  std::cout << (TerminalType)symbol;
+                  std::cout << "'" << (TerminalType)symbol << "'";
 
-                std::cout << "\' -> "
+                std::cout << " -> "
                           << actions.as.shift.item->id;
               }
 

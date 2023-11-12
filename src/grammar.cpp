@@ -177,7 +177,7 @@ parse_context_free_grammar(const char *string)
       FIRST_USER_SYMBOL,
       SYMBOL_END,
     });
-  g.lookup[0] = "start";
+  g.lookup[0] = "<start>";
 
   for (auto &[name, variable]: variables)
     {
@@ -192,7 +192,12 @@ parse_context_free_grammar(const char *string)
         }
 
       auto &variable_name = g.grab_variable_name(variable.index);
-      variable_name = name;
+      auto new_name = std::string{ };
+      new_name.reserve(name.size() + 2);
+      new_name.push_back('<');
+      new_name.append(name);
+      new_name.push_back('>');
+      variable_name = std::move(new_name);
     }
 
   // Another exit if there are not defined symbols.
@@ -206,25 +211,4 @@ bool
 is_variable(SymbolType symbol)
 {
   return symbol >= FIRST_RESERVED_SYMBOL;
-}
-
-std::string
-rule_to_string(Grammar &grammar, const Grammar::Rule &rule)
-{
-  assert(rule.size() > 0 && is_variable(rule[0]));
-
-  auto result = grammar.grab_variable_name(rule[0]);
-  result.push_back(':');
-  result.push_back(' ');
-
-  for (size_t i = 1; i + 1 < rule.size(); i++)
-    {
-      auto symbol = rule[i];
-      if (is_variable(symbol))
-        result.append(grammar.grab_variable_name(symbol));
-      else
-        result.push_back((TerminalType)symbol);
-    }
-
-  return result;
 }

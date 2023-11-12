@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <vector>
 #include <stack>
 #include <string>
@@ -30,13 +31,14 @@ main(int argc, char **argv)
 
   auto grammar = parse_context_free_grammar(argv[1]);
   auto table = compute_parsing_table(grammar);
-  auto pda = PDA{ };
+  auto pda = PDA{
+    .grammar = &grammar,
+    .table = &table,
+  };
 
   for (int i = 2; i < argc; i++)
     {
-      pda.setup(table, argv[i]);
-
-      auto result = pda.match();
+      auto result = pda.match(argv[i]);
       std::cout << "'" << argv[i] << "': ";
       std::cout << (result ? "accepted" : "rejected") << '\n';
     }

@@ -108,25 +108,30 @@ struct PDAStepResult
   Type type;
 };
 
+// Pushdown automaton is supposed to use one stack, but 'symbols' is 'reversed' stack (every 'shift' operation pops instead of pushing) and 'trace' keeps track of the visited states. I see no way of doing it with one stack.
+// Also, 'shift' and 'goto' operations are supposed to be separate, but here they are the same, which make sense, but that's not how it is supposed to be implemented.
 struct PDA
 {
-  ParsingTable *table = nullptr;
-  State *state = nullptr;
-  std::vector<SymbolType> symbols;
-  std::deque<State *> trace;
+  Grammar *grammar;
+  ParsingTable *table;
 
-  void setup(ParsingTable &table, std::string_view string)
+  std::vector<SymbolType> symbols = { };
+  std::deque<State *> trace = { };
+  State *state = nullptr;
+
+  void reset(std::string_view string)
   {
-    this->table = &table;
+    assert(grammar && table);
+
     symbols.resize(string.size());
     std::copy(string.rbegin(), string.rend(), symbols.begin());
     trace.clear();
-    state = &table.front();
+    state = &table->front();
   }
 
-  bool match()
+  bool match(std::string_view string)
   {
-    assert(table != nullptr && state != nullptr);
+    reset(string);
 
     do
       {
@@ -207,6 +212,84 @@ struct PDA
             };
           }
       }
+  }
+
+  void generate_json_of_steps(std::string_view string, const char *filepath)
+  {
+    reset(string);
+
+    auto result = std::string{ };
+
+    result.append("{\n    \"string\": \"");
+
+    for (size_t i = 0, size = symbols.size(); i < size; i++)
+      result.push_back(symbols[i]);
+
+    result.append("\",\n    \"actions\": [");
+
+    auto first_run = true;
+
+    do
+      {
+        if (!first_run)
+          result.append(",\n                ");
+
+        auto [action, type] = step();
+        switch (type)
+          {
+          case PDAStepResult::Reject:
+            {
+              result.append("0]\n}");
+              goto finish;
+            }
+          case PDAStepResult::Accept:
+            {
+              result.append("1]\n}");
+              goto finish;
+            }
+          case PDAStepResult::None:
+            switch (action->type)
+              {
+              case Action::Shift:
+                {
+                  result.append("{ \"shift\": ");
+                  result.append(std::to_string(action->as.shift.item->id));
+                  result.append(" }");
+                }
+
+                break;
+              case Action::Reduce:
+                {
+                  auto &rule = *action->as.reduce.to_rule;
+                  result.append("{ \"reduce\": { \"symbol\": \"");
+                  result.append(grammar->grab_variable_name(rule[0]));
+                  result.append("\", \"size\": ");
+                  result.append(std::to_string(rule.size() - 1 - 1));
+                  result.append(", } }");
+                }
+
+                break;
+              }
+
+            break;
+          }
+
+        first_run = false;
+      }
+    while (true);
+  finish:
+    result.push_back('\n');
+
+    auto file = std::ofstream{ filepath, std::ofstream::trunc };
+    if (!file.is_open())
+      {
+        std::cerr << "error: failed to open '"
+                  << filepath
+                  << "'\n";
+        exit(EXIT_FAILURE);
+      }
+    file.write(&result[0], result.size());
+    file.close();
   }
 };
 
