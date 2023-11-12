@@ -108,25 +108,37 @@ struct PDAStepResult
   Type type;
 };
 
-// Pushdown automaton is supposed to use one stack, but 'symbols' is 'reversed' stack (every 'shift' operation pops instead of pushing) and 'trace' keeps track of the visited states. I see no way of doing it with one stack.
-// Also, 'shift' and 'goto' operations are supposed to be separate, but here they are the same, which make sense, but that's not how it is supposed to be implemented.
+struct PDAState
+{
+  State *state;
+  SymbolType symbol;
+};
+
+// 'shift' and 'goto' operations are supposed to be separate, but in this implementation they are the same.
 struct PDA
 {
   Grammar *grammar;
   ParsingTable *table;
 
-  std::vector<SymbolType> symbols = { };
-  std::deque<State *> trace = { };
+  std::stack<PDAState> stack = { };
+  std::string_view to_match = { };
+  size_t consumed = 0;
   State *state = nullptr;
 
   void reset(std::string_view string)
   {
     assert(grammar && table);
 
-    symbols.resize(string.size());
-    std::copy(string.rbegin(), string.rend(), symbols.begin());
-    trace.clear();
+    to_match = string;
+    auto empty = std::stack<PDAState>{ };
+    stack.swap(empty); // Remove all elements.
+    consumed = 0;
     state = &table->front();
+
+    stack.push({
+        .state = state,
+        .symbol = 0,
+      });
   }
 
   bool match(std::string_view string)
@@ -153,25 +165,41 @@ struct PDA
 
     if (state->flags & State::HAS_REDUCE)
       {
-        auto action = find_action(Action::Reduce, state->actions);
-        auto &rule = *action->as.reduce.to_rule;
+        auto reduce_action = find_action(Action::Reduce, state->actions);
+        auto &rule = *reduce_action->as.reduce.to_rule;
+        auto symbol = rule[0];
 
         // Account for first symbol (variable definition) and last symbol (null terminator).
-        for (size_t i = rule.size() - 1 - 1; i-- > 1; )
-          trace.pop_back();
+        for (size_t i = rule.size() - 1 - 1; i-- > 0; )
+          stack.pop();
 
-        auto backtrack_state = trace.back();
-        trace.pop_back();
+        if (symbol == FIRST_RESERVED_SYMBOL)
+          {
+            auto type = consumed >= to_match.size() && stack.size() == 1
+              ? PDAStepResult::Accept : PDAStepResult::Reject;
+            return {
+              .action = reduce_action,
+              .type = type,
+            };
+          }
 
-        symbols.push_back(rule[0]);
-        state = backtrack_state;
+        state = stack.top().state;
+
+        auto goto_action = find_action(Action::Shift, state->actions, symbol);
+        assert(goto_action);
+        state = goto_action->as.shift.item;
+
+        stack.push({
+            .state = state,
+            .symbol = symbol,
+          });
 
         return {
-          .action = action,
+          .action = reduce_action,
           .type = PDAStepResult::None,
         };
       }
-    else if (symbols.empty())
+    else if (consumed >= to_match.size())
       {
         return {
           .action = nullptr,
@@ -180,37 +208,27 @@ struct PDA
       }
     else
       {
-        auto symbol = symbols.back();
-        symbols.pop_back();
+        auto terminal = to_match[consumed++];
+        auto action = find_action(Action::Shift, state->actions, terminal);
 
-        if (symbol == FIRST_RESERVED_SYMBOL)
+        if (action == nullptr)
           {
-            auto type = trace.empty() && symbols.empty()
-              ? PDAStepResult::Accept : PDAStepResult::Reject;
             return {
               .action = nullptr,
-              .type = type,
+              .type = PDAStepResult::Reject,
             };
           }
-        else
-          {
-            auto action = find_action(Action::Shift, state->actions, symbol);
-            if (action == nullptr)
-              {
-                return {
-                  .action = nullptr,
-                  .type = PDAStepResult::Reject,
-                };
-              }
 
-            trace.push_back(state);
-            state = action->as.shift.item;
+        state = action->as.shift.item;
+        stack.push({
+            .state = state,
+            .symbol = (SymbolType)terminal,
+          });
 
-            return {
-              .action = action,
-              .type = PDAStepResult::None,
-            };
-          }
+        return {
+          .action = action,
+          .type = PDAStepResult::None,
+        };
       }
   }
 
@@ -219,12 +237,8 @@ struct PDA
     reset(string);
 
     auto result = std::string{ };
-
     result.append("{\n    \"string\": \"");
-
-    for (size_t i = 0, size = symbols.size(); i < size; i++)
-      result.push_back(symbols[i]);
-
+    result.append(to_match);
     result.append("\",\n    \"actions\": [");
 
     auto first_run = true;
@@ -239,12 +253,12 @@ struct PDA
           {
           case PDAStepResult::Reject:
             {
-              result.append("0]\n}");
+              result.append("{ \"type\": \"finish\", \"result\": 0 }]\n}");
               goto finish;
             }
           case PDAStepResult::Accept:
             {
-              result.append("1]\n}");
+              result.append("{ \"type\": \"finish\", \"result\": 1 }]\n}");
               goto finish;
             }
           case PDAStepResult::None:
@@ -252,16 +266,14 @@ struct PDA
               {
               case Action::Shift:
                 {
-                  result.append("{ \"shift\": ");
-                  result.append(std::to_string(action->as.shift.item->id));
-                  result.append(" }");
+                  result.append("{ \"type\": \"shift\" }");
                 }
 
                 break;
               case Action::Reduce:
                 {
                   auto &rule = *action->as.reduce.to_rule;
-                  result.append("{ \"reduce\": { \"symbol\": \"");
+                  result.append("{ \"type\": \"reduce\", \"to\": { \"symbol\": \"");
                   result.append(grammar->grab_variable_name(rule[0]));
                   result.append("\", \"size\": ");
                   result.append(std::to_string(rule.size() - 1 - 1));
