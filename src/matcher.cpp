@@ -13,10 +13,8 @@ struct Item
     auto index = this->dot_index;
     index += (symbol_at_dot() != SYMBOL_END);
 
-    return Item{
-      .rule = rule,
-      .dot_index = index,
-    };
+    return { .rule = rule,
+             .dot_index = index, };
   }
 
   bool operator==(const Item &other) const
@@ -177,10 +175,8 @@ struct PDA
           {
             auto type = consumed >= to_match.size() && stack.size() == 1
               ? PDAStepResult::Accept : PDAStepResult::Reject;
-            return {
-              .action = reduce_action,
-              .type = type,
-            };
+            return { .action = reduce_action,
+                     .type = type, };
           }
 
         state = stack.top().state;
@@ -194,17 +190,13 @@ struct PDA
             .symbol = symbol,
           });
 
-        return {
-          .action = reduce_action,
-          .type = PDAStepResult::None,
-        };
+        return { .action = reduce_action,
+                 .type = PDAStepResult::None, };
       }
     else if (consumed >= to_match.size())
       {
-        return {
-          .action = nullptr,
-          .type = PDAStepResult::Reject,
-        };
+        return { .action = nullptr,
+                 .type = PDAStepResult::Reject, };
       }
     else
       {
@@ -213,10 +205,8 @@ struct PDA
 
         if (action == nullptr)
           {
-            return {
-              .action = nullptr,
-              .type = PDAStepResult::Reject,
-            };
+            return { .action = nullptr,
+                     .type = PDAStepResult::Reject, };
           }
 
         state = action->as.shift.item;
@@ -225,10 +215,8 @@ struct PDA
             .symbol = (SymbolType)terminal,
           });
 
-        return {
-          .action = action,
-          .type = PDAStepResult::None,
-        };
+        return { .action = action,
+                 .type = PDAStepResult::None, };
       }
   }
 
