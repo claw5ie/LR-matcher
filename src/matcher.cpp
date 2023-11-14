@@ -11,7 +11,7 @@ struct Item
   Item shift_dot() const
   {
     auto index = this->dot_index;
-    index += (symbol_at_dot() != SYMBOL_END);
+    index += (symbol_at_dot() != END_SYMBOL);
 
     return { .rule = rule,
              .dot_index = index, };
@@ -402,7 +402,7 @@ compute_parsing_table(Grammar &grammar)
 
       while (it != itemset.end())
         {
-          if (it->symbol_at_dot() == SYMBOL_END)
+          if (it->symbol_at_dot() == END_SYMBOL)
             {
               auto &actions = state.actions;
               do
@@ -417,7 +417,7 @@ compute_parsing_table(Grammar &grammar)
                   actions.push_back(action);
                   it++;
                 }
-              while (it != itemset.end() && it->symbol_at_dot() == SYMBOL_END);
+              while (it != itemset.end() && it->symbol_at_dot() == END_SYMBOL);
             }
 
           while (it != itemset.end())

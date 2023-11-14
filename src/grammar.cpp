@@ -3,9 +3,9 @@ using SymbolType = int32_t;
 
 static_assert(sizeof(TerminalType) < sizeof(SymbolType));
 
-constexpr SymbolType FIRST_RESERVED_SYMBOL = 1 << (sizeof(TerminalType) * CHAR_BIT);
-constexpr SymbolType FIRST_USER_SYMBOL = FIRST_RESERVED_SYMBOL + 1;
-constexpr SymbolType SYMBOL_END = -1;
+constexpr SymbolType START_SYMBOL = 1 << (sizeof(TerminalType) * CHAR_BIT);
+constexpr SymbolType FIRST_SYMBOL = START_SYMBOL + 1;
+constexpr SymbolType END_SYMBOL = -1;
 
 struct Grammar
 {
@@ -17,8 +17,8 @@ struct Grammar
 
   std::string &grab_variable_name(SymbolType index)
   {
-    assert(index >= FIRST_RESERVED_SYMBOL);
-    return lookup[index - FIRST_RESERVED_SYMBOL];
+    assert(index >= START_SYMBOL);
+    return lookup[index - START_SYMBOL];
   }
 
   std::set<Rule>::iterator find_first_rule(SymbolType symbol)
@@ -44,7 +44,7 @@ parse_context_free_grammar(const char *string)
   };
   auto g = Grammar{ };
   auto variables = VariableTable{ };
-  auto next_symbol_index = FIRST_USER_SYMBOL;
+  auto next_symbol_index = FIRST_SYMBOL;
   auto failed_to_parse = false;
 
   do
@@ -158,7 +158,7 @@ parse_context_free_grammar(const char *string)
           while (true);
         finish_parsing_sequence_of_terminals_and_variables:
 
-          rule.push_back(SYMBOL_END);
+          rule.push_back(END_SYMBOL);
           g.rules.insert(std::move(rule));
         }
       while (t.expect(Token_Bar));
@@ -173,10 +173,10 @@ parse_context_free_grammar(const char *string)
 
   g.lookup.resize(variables.size() + 1);
   g.rules.insert({
-      FIRST_RESERVED_SYMBOL,
-      FIRST_USER_SYMBOL,
+      START_SYMBOL,
+      FIRST_SYMBOL,
       '\0',
-      SYMBOL_END,
+      END_SYMBOL,
     });
   g.lookup[0] = "<start>";
 
@@ -211,5 +211,5 @@ parse_context_free_grammar(const char *string)
 bool
 is_variable(SymbolType symbol)
 {
-  return symbol >= FIRST_RESERVED_SYMBOL;
+  return symbol >= START_SYMBOL;
 }
