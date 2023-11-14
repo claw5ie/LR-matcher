@@ -1,11 +1,11 @@
 using TerminalType = char;
-using SymbolType = uint32_t;
+using SymbolType = int32_t;
 
 static_assert(sizeof(TerminalType) < sizeof(SymbolType));
 
 constexpr SymbolType FIRST_RESERVED_SYMBOL = 1 << (sizeof(TerminalType) * CHAR_BIT);
 constexpr SymbolType FIRST_USER_SYMBOL = FIRST_RESERVED_SYMBOL + 1;
-constexpr SymbolType SYMBOL_END = 0;
+constexpr SymbolType SYMBOL_END = -1;
 
 struct Grammar
 {
@@ -175,6 +175,7 @@ parse_context_free_grammar(const char *string)
   g.rules.insert({
       FIRST_RESERVED_SYMBOL,
       FIRST_USER_SYMBOL,
+      '\0',
       SYMBOL_END,
     });
   g.lookup[0] = "<start>";

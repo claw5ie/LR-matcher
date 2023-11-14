@@ -119,11 +119,11 @@ struct PDA
   ParsingTable *table;
 
   std::stack<PDAState> stack = { };
-  std::string_view to_match = { };
+  const char *to_match = "";
   size_t consumed = 0;
   State *state = nullptr;
 
-  void reset(std::string_view string)
+  void reset(const char *string)
   {
     assert(grammar && table);
 
@@ -139,7 +139,7 @@ struct PDA
       });
   }
 
-  bool match(std::string_view string)
+  bool match(const char *string)
   {
     reset(string);
 
@@ -171,14 +171,6 @@ struct PDA
         for (size_t i = rule.size() - 1 - 1; i-- > 0; )
           stack.pop();
 
-        if (symbol == FIRST_RESERVED_SYMBOL)
-          {
-            auto type = consumed >= to_match.size() && stack.size() == 1
-              ? PDAStepResult::Accept : PDAStepResult::Reject;
-            return { .action = reduce_action,
-                     .type = type, };
-          }
-
         state = stack.top().state;
 
         auto goto_action = find_action(Action::Shift, state->actions, symbol);
@@ -193,11 +185,6 @@ struct PDA
         return { .action = reduce_action,
                  .type = PDAStepResult::None, };
       }
-    else if (consumed >= to_match.size())
-      {
-        return { .action = nullptr,
-                 .type = PDAStepResult::Reject, };
-      }
     else
       {
         auto terminal = to_match[consumed++];
@@ -208,19 +195,26 @@ struct PDA
             return { .action = nullptr,
                      .type = PDAStepResult::Reject, };
           }
+        else if (terminal == '\0')
+          {
+            return { .action = nullptr,
+                     .type = PDAStepResult::Accept, };
+          }
+        else
+          {
+            state = action->as.shift.item;
+            stack.push({
+                .state = state,
+                .symbol = terminal,
+              });
 
-        state = action->as.shift.item;
-        stack.push({
-            .state = state,
-            .symbol = (SymbolType)terminal,
-          });
-
-        return { .action = action,
-                 .type = PDAStepResult::None, };
+            return { .action = action,
+                     .type = PDAStepResult::None, };
+          }
       }
   }
 
-  void generate_json_of_steps(std::string_view string, const char *filepath)
+  void generate_json_of_steps(const char *string, const char *filepath)
   {
     reset(string);
 
