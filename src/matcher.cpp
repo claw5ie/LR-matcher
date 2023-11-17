@@ -259,7 +259,7 @@ struct PDA
                   result.append(grammar->grab_variable_name(rule[0]));
                   result.append("\", \"size\": ");
                   result.append(std::to_string(rule.size() - 1 - 1));
-                  result.append(", } }");
+                  result.append(" } }");
                 }
 
                 break;
