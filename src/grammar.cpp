@@ -28,7 +28,7 @@ struct Grammar
 };
 
 Grammar
-parse_context_free_grammar(const char *string)
+parse_context_free_grammar(const char *string, bool use_bnf)
 {
   struct VariableInfo
   {
@@ -43,7 +43,7 @@ parse_context_free_grammar(const char *string)
     .ctx = {
       .source = string,
     },
-    .buffer_token = buffer_token_bnf,
+    .buffer_token = use_bnf ? buffer_token_bnf : buffer_token_custom,
   };
   auto g = Grammar{ };
   auto variables = VariableTable{ };
