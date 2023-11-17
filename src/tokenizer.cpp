@@ -1,26 +1,29 @@
+#define PRINT_ERROR0(line_info, message) fprintf(stderr, "%zu:%zu: error: " message "\n", (line_info).line, (line_info).column)
+#define PRINT_ERROR(line_info, message, ...) fprintf(stderr, "%zu:%zu: error: " message "\n", (line_info).line, (line_info).column, __VA_ARGS__)
+
 struct LineInfo
 {
   size_t offset = 0, line = 1, column = 1;
 };
 
-enum TokenType
-  {
-    Token_Variable,
-    Token_Terminals_Sequence,
-    Token_Colon,
-    Token_Semicolon,
-    Token_Bar,
-    Token_End_Of_File,
-  };
-
 struct Token
 {
-  TokenType type;
+  enum Type
+    {
+      Variable,
+      Terminals_Sequence,
+      Define,
+      Delimiter,
+      Bar,
+      End_Of_File,
+    };
+
+  Type type;
   std::string_view text;
   LineInfo line_info;
 };
 
-struct Tokenizer
+struct TokenizerContext
 {
   constexpr static uint8_t LOOKAHEAD = 2;
 
@@ -29,61 +32,287 @@ struct Tokenizer
   uint8_t token_count = 0;
   LineInfo line_info = { };
   const char *source;
+};
 
-  static inline
-  void report_error_start(LineInfo line_info)
-  {
-    std::cerr << line_info.line
-              << ':'
-              << line_info.column
-              << ": error: ";
-  }
+void
+advance_line_info(TokenizerContext &ctx, char ch)
+{
+  ++ctx.line_info.offset;
+  ++ctx.line_info.column;
+  if (ch == '\n')
+    {
+      ++ctx.line_info.line;
+      ctx.line_info.column = 1;
+    }
+}
 
-  template<typename T>
-  static inline
-  void report_error_print(T value)
-  {
-    std::cerr << value;
-  }
+void
+advance_line_info_assume_no_new_line(TokenizerContext &ctx, size_t count)
+{
+  ctx.line_info.offset += count;
+  ctx.line_info.column += count;
+}
 
-  static inline
-  void report_error_end()
-  {
-    std::cerr << '\n';
-  }
+void
+buffer_token_custom(TokenizerContext &ctx)
+{
+  auto failed_to_tokenize = false;
+  auto at = &ctx.source[ctx.line_info.offset];
+
+  while (isspace(*at))
+    advance_line_info(ctx, *at++);
+
+  auto token = Token{
+    .type = Token::End_Of_File,
+    .text = { at, 0 },
+    .line_info = ctx.line_info,
+  };
+
+  switch (*at)
+    {
+    case '\0':
+      break;
+    case ':':
+      token.type = Token::Define;
+      token.text = { token.text.data(), 1 };
+      advance_line_info(ctx, *at++);
+      break;
+    case ';':
+      token.type = Token::Delimiter;
+      token.text = { token.text.data(), 1 };
+      advance_line_info(ctx, *at++);
+      break;
+    case '|':
+      token.type = Token::Bar;
+      token.text = { token.text.data(), 1 };
+      advance_line_info(ctx, *at++);
+      break;
+    default:
+      if (isupper(*at))
+        {
+          do
+            advance_line_info(ctx, *at++);
+          while (isalnum(*at)
+                 || *at == '\''
+                 || *at == '-'
+                 || *at == '_');
+
+          token.type = Token::Variable;
+          token.text = { token.text.data(), size_t(at - token.text.data()) };
+        }
+      else
+        {
+          auto const is_escape_char =
+            [](char ch) -> bool
+            {
+              return isupper(ch)
+                || ch == ':'
+                || ch == ';'
+                || ch == '|'
+                || ch == ' ';
+            };
+
+          while (*at != '\0' && !is_escape_char(*at))
+            {
+              if (*at == '\\')
+                {
+                  advance_line_info(ctx, *at++);
+
+                  if (*at != '\\' && !is_escape_char(*at))
+                    {
+                      failed_to_tokenize = true;
+                      PRINT_ERROR(ctx.line_info, "invalid escape sequence '\\%c'", *at);
+                    }
+                }
+
+              advance_line_info(ctx, *at++);
+            }
+
+          token.type = Token::Terminals_Sequence;
+          token.text = { token.text.data(), size_t(at - token.text.data()) };
+        }
+    }
+
+  if (failed_to_tokenize)
+    exit(EXIT_FAILURE);
+
+  assert(ctx.token_count < ctx.LOOKAHEAD);
+  uint8_t index = (ctx.token_start + ctx.token_count) % ctx.LOOKAHEAD;
+  ctx.tokens_buffer[index] = token;
+  ctx.token_count++;
+}
+
+void
+buffer_token_bnf(TokenizerContext &ctx)
+{
+  auto failed_to_tokenize = false;
+  auto at = &ctx.source[ctx.line_info.offset];
+  auto has_new_line = false;
+
+  while (isspace(*at))
+    {
+      has_new_line = (*at == '\n') || has_new_line;
+      advance_line_info(ctx, *at++);
+    }
+
+  auto token = Token{
+    .type = Token::End_Of_File,
+    .text = { at, 0 },
+    .line_info = ctx.line_info,
+  };
+
+  if (has_new_line)
+    {
+      token.type = Token::Delimiter;
+      goto push_token;
+    }
+
+  switch (*at)
+    {
+    case '\0':
+      break;
+    case '<':
+      {
+        do
+          advance_line_info(ctx, *at++);
+        while (*at != '\0' && *at != '>');
+
+        if (*at != '>')
+          {
+            failed_to_tokenize = true;
+            PRINT_ERROR0(ctx.line_info, "expected '>' to terminate variable name");
+            exit(EXIT_FAILURE);
+          }
+
+        advance_line_info(ctx, *at++);
+
+        size_t size = size_t(at - token.text.data());
+        if (size <= 2)
+          {
+            failed_to_tokenize = true;
+            PRINT_ERROR0(ctx.line_info, "empty variable name");
+            exit(EXIT_FAILURE);
+          }
+
+        token.type = Token::Variable;
+        token.text = { token.text.data() + 1, size - 2 };
+      }
+
+      break;
+    case '|':
+      {
+        advance_line_info(ctx, *at++);
+        token.type = Token::Bar;
+        token.text = { token.text.data(), 1 };
+      }
+
+      break;
+    default:
+      if (at[0] == ':' && at[1] == ':' && at[2] == '=')
+        {
+          token.type = Token::Define;
+          token.text = { token.text.data(), 3 };
+
+          at += token.text.size();
+          advance_line_info_assume_no_new_line(ctx, token.text.size());
+        }
+      else if (*at == '\"')
+        {
+          auto const is_escape_char =
+            [](char ch) -> bool
+            {
+              return ch == '\"';
+            };
+
+          advance_line_info(ctx, *at++);
+
+          while (*at != '\0' && *at != '\"')
+            {
+              if (*at == '\\')
+                {
+                  advance_line_info(ctx, *at++);
+
+                  if (*at != '\\' && !is_escape_char(*at))
+                    {
+                      failed_to_tokenize = true;
+                      PRINT_ERROR(ctx.line_info, "invalid escape sequence '\\%c'", *at);
+                    }
+                }
+
+              advance_line_info(ctx, *at++);
+            }
+
+          if (*at != '\"')
+            {
+              failed_to_tokenize = true;
+              PRINT_ERROR0(ctx.line_info, "expected '\"' to terminate string");
+              exit(EXIT_FAILURE);
+            }
+
+          advance_line_info(ctx, *at++);
+
+          token.type = Token::Terminals_Sequence;
+          token.text = { token.text.data() + 1, size_t(at - token.text.data()) - 2 };
+        }
+      else
+        {
+          failed_to_tokenize = true;
+          PRINT_ERROR(ctx.line_info, "expected '<' or '\"', but got '%c'", *at);
+
+          while (*at != '\0' && *at != '<' && *at != '\"')
+            advance_line_info(ctx, *at++);
+        }
+    }
+
+  if (failed_to_tokenize)
+    exit(EXIT_FAILURE);
+
+ push_token:
+  assert(ctx.token_count < ctx.LOOKAHEAD);
+  uint8_t index = (ctx.token_start + ctx.token_count) % ctx.LOOKAHEAD;
+  ctx.tokens_buffer[index] = token;
+  ctx.token_count++;
+}
+
+using TokenizerBufferTokenFunction = void (*)(TokenizerContext &);
+
+struct Tokenizer
+{
+  TokenizerContext ctx;
+  TokenizerBufferTokenFunction buffer_token;
 
   Token grab()
   {
-    assert(token_count > 0);
-    return tokens_buffer[token_start];
+    assert(ctx.token_count > 0);
+    return ctx.tokens_buffer[ctx.token_start];
   }
 
-  TokenType peek()
+  Token::Type peek()
   {
-    if (token_count == 0)
-      buffer_token();
+    if (ctx.token_count == 0)
+      buffer_token(ctx);
 
-    return tokens_buffer[token_start].type;
+    return ctx.tokens_buffer[ctx.token_start].type;
   }
 
-  TokenType peek(uint8_t index)
+  Token::Type peek(uint8_t index)
   {
-    assert(index < LOOKAHEAD);
+    assert(index < ctx.LOOKAHEAD);
 
-    while (index >= token_count)
-      buffer_token();
+    while (index >= ctx.token_count)
+      buffer_token(ctx);
 
-    return tokens_buffer[(token_start + index) % LOOKAHEAD].type;
+    return ctx.tokens_buffer[(ctx.token_start + index) % ctx.LOOKAHEAD].type;
   }
 
   void advance()
   {
-    token_start += 1;
-    token_start %= LOOKAHEAD;
-    token_count -= 1;
+    ctx.token_start += 1;
+    ctx.token_start %= ctx.LOOKAHEAD;
+    ctx.token_count -= 1;
   }
 
-  bool expect(TokenType expected)
+  bool expect(Token::Type expected)
   {
     if (peek() != expected)
       return false;
@@ -91,128 +320,14 @@ struct Tokenizer
     return true;
   }
 
-  void skip_to_next_semicolon()
+  void skip_to_next_delimiter()
   {
     auto tt = peek();
-    while (tt != Token_End_Of_File
-           && tt != Token_Semicolon)
+    while (tt != Token::End_Of_File
+           && tt != Token::Delimiter)
       {
         advance();
         tt = peek();
       }
-  }
-
-  void advance_line_info()
-  {
-    ++line_info.offset;
-    ++line_info.column;
-    if (source[line_info.offset - 1] == '\n')
-      {
-        ++line_info.line;
-        line_info.column = 1;
-      }
-  }
-
-  void buffer_token()
-  {
-    auto failed_to_tokenize = false;
-    auto at = &source[line_info.offset];
-
-    while (isspace(*at))
-      {
-        advance_line_info();
-        at++;
-      }
-
-    auto token = Token{
-      .type = Token_End_Of_File,
-      .text = { at, 0 },
-      .line_info = line_info,
-    };
-
-    switch (*at)
-      {
-      case '\0':
-        break;
-      case ':':
-        token.type = Token_Colon;
-        token.text = { token.text.data(), 1 };
-        advance_line_info();
-        at++;
-        break;
-      case ';':
-        token.type = Token_Semicolon;
-        token.text = { token.text.data(), 1 };
-        advance_line_info();
-        at++;
-        break;
-      case '|':
-        token.type = Token_Bar;
-        token.text = { token.text.data(), 1 };
-        advance_line_info();
-        at++;
-        break;
-      default:
-        if (isupper(*at))
-          {
-            do
-              {
-                advance_line_info();
-                at++;
-              }
-            while (isalnum(*at)
-                   || *at == '\''
-                   || *at == '-'
-                   || *at == '_');
-
-            token.type = Token_Variable;
-            token.text = { token.text.data(), size_t(at - token.text.data()) };
-          }
-        else
-          {
-            auto const is_escape_char =
-              [](char ch) -> bool
-              {
-                return isupper(ch)
-                  || ch == ':'
-                  || ch == ';'
-                  || ch == '|'
-                  || ch == ' ';
-              };
-
-            while (*at != '\0' && !is_escape_char(*at))
-              {
-                if (*at == '\\')
-                  {
-                    advance_line_info();
-                    at++;
-
-                    if (*at != '\\' && !is_escape_char(*at))
-                      {
-                        failed_to_tokenize = true;
-                        report_error_start(line_info);
-                        report_error_print(": error: invalid escape sequence '\\");
-                        report_error_print(*at);
-                        report_error_print("'");
-                        report_error_end();
-                      }
-                  }
-
-                advance_line_info();
-                at++;
-              }
-
-            token.type = Token_Terminals_Sequence;
-            token.text = { token.text.data(), size_t(at - token.text.data()) };
-          }
-      }
-
-    if (failed_to_tokenize)
-      exit(EXIT_FAILURE);
-
-    assert(token_count < LOOKAHEAD);
-    uint8_t index = (token_start + token_count) % LOOKAHEAD;
-    tokens_buffer[index] = token;
-    token_count++;
   }
 };

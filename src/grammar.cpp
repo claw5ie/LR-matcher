@@ -40,7 +40,10 @@ parse_context_free_grammar(const char *string)
   using VariableTable = std::map<std::string_view, VariableInfo>;
 
   auto t = Tokenizer{
-    .source = string,
+    .ctx = {
+      .source = string,
+    },
+    .buffer_token = buffer_token_bnf,
   };
   auto g = Grammar{ };
   auto variables = VariableTable{ };
@@ -49,20 +52,18 @@ parse_context_free_grammar(const char *string)
 
   do
     {
-      if (t.peek() != Token_Variable)
+      if (t.peek() != Token::Variable)
         {
           failed_to_parse = true;
 
           auto line_info = t.grab().line_info;
-          t.report_error_start(line_info);
-          t.report_error_print("expected a variable to start production");
-          t.report_error_end();
+          PRINT_ERROR0(line_info, "expected a variable to start production");
 
           // Skip to next production.
-          if (t.peek(1) != Token_Colon)
+          if (t.peek(1) != Token::Define)
             {
-              t.skip_to_next_semicolon();
-              if (t.peek() == Token_Semicolon)
+              t.skip_to_next_delimiter();
+              if (t.peek() == Token::Delimiter)
                 t.advance();
               continue;
             }
@@ -87,16 +88,12 @@ parse_context_free_grammar(const char *string)
         value.is_defined = true;
       }
 
-      if (!t.expect(Token_Colon))
+      if (!t.expect(Token::Define))
         {
           failed_to_parse = true;
 
           auto token = t.grab();
-          t.report_error_start(token.line_info);
-          t.report_error_print("expected ':' before '");
-          t.report_error_print(token.text);
-          t.report_error_print("'");
-          t.report_error_end();
+          PRINT_ERROR(token.line_info, "expected ':' or '::=' before '%.*s'", (int)token.text.size(), token.text.data());
         }
 
       do
@@ -109,7 +106,7 @@ parse_context_free_grammar(const char *string)
               auto tt = t.peek();
               switch (tt)
                 {
-                case Token_Variable:
+                case Token::Variable:
                   {
                     auto token = t.grab();
                     auto info = VariableInfo{
@@ -125,7 +122,7 @@ parse_context_free_grammar(const char *string)
                   }
 
                   break;
-                case Token_Terminals_Sequence:
+                case Token::Terminals_Sequence:
                   {
                     auto text = t.grab().text;
                     for (size_t i = 0; i < text.size(); i++)
@@ -136,15 +133,13 @@ parse_context_free_grammar(const char *string)
                   }
 
                   break;
-                case Token_Colon:
+                case Token::Define:
                   {
                     failed_to_parse = true;
 
                     auto line_info = t.grab().line_info;
-                    t.report_error_start(line_info);
-                    t.report_error_print("expected variable or terminal, not colon (':')");
-                    t.report_error_end();
-                    t.skip_to_next_semicolon();
+                    PRINT_ERROR0(line_info, "expected variable or terminal");
+                    t.skip_to_next_delimiter();
                   }
 
                   [[fallthrough]];
@@ -161,12 +156,12 @@ parse_context_free_grammar(const char *string)
           rule.push_back(END_SYMBOL);
           g.rules.insert(std::move(rule));
         }
-      while (t.expect(Token_Bar));
+      while (t.expect(Token::Bar));
 
-      if (t.peek() == Token_Semicolon)
+      if (t.peek() == Token::Delimiter)
         t.advance();
     }
-  while (t.peek() != Token_End_Of_File);
+  while (t.peek() != Token::End_Of_File);
 
   if (failed_to_parse)
     exit(EXIT_FAILURE);
@@ -185,11 +180,7 @@ parse_context_free_grammar(const char *string)
       if (!variable.is_defined)
         {
           failed_to_parse = true;
-          t.report_error_start(variable.line_info);
-          t.report_error_print("variable '");
-          t.report_error_print(name);
-          t.report_error_print("' is not defined");
-          t.report_error_end();
+          PRINT_ERROR(variable.line_info, "variable '%.*s' is not defined", (int)name.size(), name.data());
         }
 
       auto &variable_name = g.grab_variable_name(variable.index);
