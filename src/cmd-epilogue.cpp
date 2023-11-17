@@ -1,6 +1,6 @@
 enum OptionType
   {
-    Grammar_Notation,
+    Grammar_Form,
     Generate_Automaton_Steps,
   };
 
@@ -20,7 +20,7 @@ apply_option(void *ctx_ptr, const Option *option, const char *argument)
 
   switch ((OptionType)option->id)
     {
-    case Grammar_Notation:
+    case Grammar_Form:
       {
         if (strcmp("bnf", argument) == 0)
           ctx.use_bnf = true;

@@ -23,7 +23,7 @@
 #include "cmd-epilogue.cpp"
 
 constexpr Option options[] = {
-  { .short_name = 'n', .has_arg = true, .id = Grammar_Notation },
+  { .short_name = 'f', .has_arg = true, .id = Grammar_Form },
   { .short_name = '\0', .long_name = "generate_steps", .has_arg = true, .id = Generate_Automaton_Steps },
 };
 
