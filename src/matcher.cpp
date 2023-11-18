@@ -66,6 +66,7 @@ struct State
   constexpr static uint8_t HAS_SHIFT_REDUCE = HAS_SHIFT | HAS_REDUCE;
 
   ItemSet itemset;
+  // TODO: could seperate actions into two lists: one for shift and one for reduce actions. Also helps to check for shift/reduce and reduce/reduce conflicts.
   std::list<Action> actions;
   StateId id;
   uint8_t flags = 0;
@@ -455,4 +456,45 @@ compute_parsing_table(Grammar &grammar)
     }
 
   return table;
+}
+
+void
+generate_automaton_json(ParsingTable &table, const char *filepath)
+{
+  auto result = std::string{ };
+  result.push_back('[');
+
+  size_t i = 0;
+  for (auto &state: table)
+    {
+      assert(state.id == i++);
+      result.push_back('[');
+
+      size_t j = 0;
+      for (auto &action: state.actions)
+        {
+          if (action.type == Action::Shift)
+            {
+              result.append("{ \"label\": ");
+              result.append(std::to_string(action.as.shift.label));
+              result.append(", \"dst\": ");
+              result.append(std::to_string(action.as.shift.item->id));
+              result.append(" }");
+            }
+
+          if (++j < state.actions.size())
+            result.append(", ");
+        }
+
+      result.push_back(']');
+
+      if (i < table.size())
+        result.append(", ");
+    }
+
+  result.append("]\n");
+
+  auto file = std::ofstream{ filepath };
+  file.write(&result[0], result.size());
+  file.close();
 }

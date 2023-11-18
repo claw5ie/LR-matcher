@@ -24,7 +24,8 @@
 
 constexpr Option options[] = {
   { .short_name = 'f', .has_arg = true, .id = Grammar_Form },
-  { .short_name = '\0', .long_name = "generate_steps", .has_arg = true, .id = Generate_Automaton_Steps },
+  { .short_name = '\0', .long_name = "generate-automaton", .has_arg = true, .id = Generate_Automaton },
+  { .short_name = '\0', .long_name = "generate-steps", .has_arg = true, .id = Generate_Automaton_Steps },
 };
 
 int
@@ -45,6 +46,9 @@ main(int argc, char **argv)
     .grammar = &grammar,
     .table = &table,
   };
+
+  if (config.generate_automaton)
+      generate_automaton_json(table, config.automaton_filepath);
 
   for (size_t i = 1; i < config.arg_count; i++)
     {

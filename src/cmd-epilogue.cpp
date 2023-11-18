@@ -1,13 +1,16 @@
 enum OptionType
   {
     Grammar_Form,
+    Generate_Automaton,
     Generate_Automaton_Steps,
   };
 
 struct Config
 {
   bool use_bnf = false;
+  bool generate_automaton = false;
   bool generate_automaton_steps = false;
+  const char *automaton_filepath = nullptr;
   const char *automaton_steps_filepath = nullptr;
   const char *args[32] = { };
   size_t arg_count = 0;
@@ -33,6 +36,13 @@ apply_option(void *ctx_ptr, const Option *option, const char *argument)
                       << "' is not a valid notation\n";
             return true;
           }
+      }
+
+      break;
+    case Generate_Automaton:
+      {
+        ctx.generate_automaton = true;
+        ctx.automaton_filepath = argument;
       }
 
       break;
