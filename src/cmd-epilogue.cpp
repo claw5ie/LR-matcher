@@ -19,7 +19,7 @@ struct Config
 bool
 apply_option(void *ctx_ptr, const Option *option, const char *argument)
 {
-  Config &ctx = *(Config *)ctx_ptr;
+  auto &ctx = *(Config *)ctx_ptr;
 
   switch ((OptionType)option->id)
     {
@@ -61,7 +61,7 @@ apply_option(void *ctx_ptr, const Option *option, const char *argument)
 bool
 apply_non_option(void *ctx_ptr, const char *string)
 {
-  Config &ctx = *(Config *)ctx_ptr;
+  auto &ctx = *(Config *)ctx_ptr;
 
   if (ctx.arg_count >= sizeof(ctx.args) / sizeof(*ctx.args))
     {

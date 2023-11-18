@@ -44,7 +44,7 @@ Characters `:`, `;`, `|`, ` `, `\` and upper case characters can be escaped with
 | `--generate-automaton`   | `<filepath>`   | Generate JSON containing automaton |
 | `--generate-steps`       | `<filepath>`   | Generate JSON containing steps needed to simulate pushdown automaton |
 
-## Examples of grammars:
+## Examples of grammars
 
 * `S: (S)S | ()`
 * `EmptyString: `
