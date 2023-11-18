@@ -59,7 +59,7 @@ main(int argc, char **argv)
       if (config.generate_automaton_steps)
         {
           auto name = std::string{ config.automaton_steps_filepath } + std::to_string(i - 1);
-          pda.generate_json_of_steps(config.args[i], name.c_str());
+          pda.generate_automaton_steps_json(config.args[i], name.c_str());
         }
     }
 

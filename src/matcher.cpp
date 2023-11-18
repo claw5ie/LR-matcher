@@ -215,7 +215,7 @@ struct PDA
       }
   }
 
-  void generate_json_of_steps(const char *string, const char *filepath)
+  void generate_automaton_steps_json(const char *string, const char *filepath)
   {
     reset(string);
 
