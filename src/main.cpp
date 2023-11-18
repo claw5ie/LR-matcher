@@ -48,7 +48,7 @@ main(int argc, char **argv)
   };
 
   if (config.generate_automaton)
-      generate_automaton_json(table, config.automaton_filepath);
+    generate_automaton_json(table, config.automaton_filepath);
 
   for (size_t i = 1; i < config.arg_count; i++)
     {
