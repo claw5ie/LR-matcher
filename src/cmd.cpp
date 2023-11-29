@@ -103,7 +103,7 @@ parse_options(void *ctx, int argc, char **argv, const Option *options, size_t op
               if (i >= option_count)
                 {
                   failed_to_parse = true;
-                  std::cerr << "error: couldn't find option '"
+                  std::cerr << "error: couldn't find option '-"
                             << short_name
                             << "'\n";
                   goto skip;
