@@ -51,7 +51,7 @@ parse_options(void *ctx, int argc, char **argv, const Option *options, size_t op
               std::cerr << "error: couldn't find option '"
                         << arg
                         << "'\n";
-              continue;
+              goto skip;
             }
           else if (options[i].has_arg)
             {
@@ -65,7 +65,7 @@ parse_options(void *ctx, int argc, char **argv, const Option *options, size_t op
                   std::cerr << "error: no argument for option '"
                             << arg
                             << "'\n";
-                  continue;
+                  goto skip;
                 }
             }
           else if (*after_prefix != '\0')
@@ -74,7 +74,7 @@ parse_options(void *ctx, int argc, char **argv, const Option *options, size_t op
               std::cerr << "error: unused argument for option '"
                         << options[i].long_name
                         << "'\n";
-              continue;
+              goto skip;
             }
           else
             failed_to_parse = apply_option(ctx, &options[i], nullptr) || failed_to_parse;
@@ -92,7 +92,7 @@ parse_options(void *ctx, int argc, char **argv, const Option *options, size_t op
                             << short_name
                             << "'\n";
 
-                  break;
+                  goto skip;
                 }
 
               size_t i = 0;
@@ -106,19 +106,19 @@ parse_options(void *ctx, int argc, char **argv, const Option *options, size_t op
                   std::cerr << "error: couldn't find option '"
                             << short_name
                             << "'\n";
-                  break;
+                  goto skip;
                 }
               else if (options[i].has_arg)
                 {
                   if (arg[column + 1] != '\0')
                     {
                       failed_to_parse = apply_option(ctx, &options[i], &arg[++column]) || failed_to_parse;
-                      break;
+                      goto skip;
                     }
                   else if (line + 1 < last_line)
                     {
                       failed_to_parse = apply_option(ctx, &options[i], argv[++line]) || failed_to_parse;
-                      break;
+                      goto skip;
                     }
                   else
                     {
@@ -126,7 +126,7 @@ parse_options(void *ctx, int argc, char **argv, const Option *options, size_t op
                       std::cerr << "error: no argument for option '"
                                 << short_name
                                 << "'\n";
-                      break;
+                      goto skip;
                     }
                 }
               else
@@ -140,6 +140,8 @@ parse_options(void *ctx, int argc, char **argv, const Option *options, size_t op
           --last_line;
           --line;
         }
+
+    skip: { }
     }
 
   if (failed_to_parse)
