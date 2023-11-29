@@ -25,14 +25,14 @@ is_prefix(const char *prefix, const char *string)
 }
 
 bool apply_option(void *ctx, const Option *option, const char *argument);
-bool apply_non_option(void *ctx, const char *argument);
 
-void
-parse_options(void *ctx, size_t argc, char **argv, const Option *options, size_t option_count, size_t line)
+int
+parse_options(void *ctx, int argc, char **argv, const Option *options, size_t option_count, int line)
 {
+  auto last_line = argc;
   auto failed_to_parse = false;
 
-  for (; line < argc; line++)
+  for (; line < last_line; line++)
     {
       auto arg = argv[line];
 
@@ -57,7 +57,7 @@ parse_options(void *ctx, size_t argc, char **argv, const Option *options, size_t
             {
               if (*after_prefix == '=')
                 failed_to_parse = apply_option(ctx, &options[i], after_prefix + 1) || failed_to_parse;
-              else if (line + 1 < argc)
+              else if (line + 1 < last_line)
                 failed_to_parse = apply_option(ctx, &options[i], argv[++line]) || failed_to_parse;
               else
                 {
@@ -115,7 +115,7 @@ parse_options(void *ctx, size_t argc, char **argv, const Option *options, size_t
                       failed_to_parse = apply_option(ctx, &options[i], &arg[++column]) || failed_to_parse;
                       break;
                     }
-                  else if (line + 1 < argc)
+                  else if (line + 1 < last_line)
                     {
                       failed_to_parse = apply_option(ctx, &options[i], argv[++line]) || failed_to_parse;
                       break;
@@ -134,9 +134,16 @@ parse_options(void *ctx, size_t argc, char **argv, const Option *options, size_t
             }
         }
       else
-        failed_to_parse = apply_non_option(ctx, arg) || failed_to_parse;
+        {
+          memmove(&argv[line], &argv[line + 1], sizeof(*argv) * (argc - line - 1));
+          argv[argc - 1] = arg;
+          --last_line;
+          --line;
+        }
     }
 
   if (failed_to_parse)
     exit(EXIT_FAILURE);
+
+  return last_line;
 }

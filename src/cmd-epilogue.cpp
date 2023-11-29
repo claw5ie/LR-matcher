@@ -8,12 +8,8 @@ enum OptionType
 struct Config
 {
   bool use_bnf = false;
-  bool generate_automaton = false;
-  bool generate_automaton_steps = false;
   const char *automaton_filepath = nullptr;
   const char *automaton_steps_filepath = nullptr;
-  const char *args[32] = { };
-  size_t arg_count = 0;
 };
 
 bool
@@ -40,36 +36,12 @@ apply_option(void *ctx_ptr, const Option *option, const char *argument)
 
       break;
     case Generate_Automaton:
-      {
-        ctx.generate_automaton = true;
-        ctx.automaton_filepath = argument;
-      }
-
+      ctx.automaton_filepath = argument;
       break;
     case Generate_Automaton_Steps:
-      {
-        ctx.generate_automaton_steps = true;
-        ctx.automaton_steps_filepath = argument;
-      }
-
+      ctx.automaton_steps_filepath = argument;
       break;
     }
-
-  return false;
-}
-
-bool
-apply_non_option(void *ctx_ptr, const char *string)
-{
-  auto &ctx = *(Config *)ctx_ptr;
-
-  if (ctx.arg_count >= sizeof(ctx.args) / sizeof(*ctx.args))
-    {
-      std::cerr << "error: too many arguments.\n";
-      return true;
-    }
-
-  ctx.args[ctx.arg_count++] = string;
 
   return false;
 }

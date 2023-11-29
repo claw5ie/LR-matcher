@@ -32,34 +32,35 @@ int
 main(int argc, char **argv)
 {
   auto config = Config{ };
-  parse_options(&config, argc, argv, options, sizeof(options) / sizeof(*options), 1);
+  auto last_non_option_index = parse_options(&config, argc, argv, options, sizeof(options) / sizeof(*options), 1);
 
-  if (config.arg_count == 0)
+  if (argc - last_non_option_index == 0)
     {
-      std::cerr << "error: no grammar given.\n";
+      std::cerr << "error: missing grammar\nusage: [OPTIONS] [GRAMMAR] [STRINGS_TO_MATCH]\n";
       return EXIT_FAILURE;
     }
 
-  auto grammar = parse_context_free_grammar(config.args[0], config.use_bnf);
+  auto grammar = parse_context_free_grammar(argv[last_non_option_index], config.use_bnf);
   auto table = compute_parsing_table(grammar);
   auto pda = PDA{
     .grammar = &grammar,
     .table = &table,
   };
 
-  if (config.generate_automaton)
+  if (config.automaton_filepath)
     generate_automaton_json(table, config.automaton_filepath);
 
-  for (size_t i = 1; i < config.arg_count; i++)
+  for (int i = last_non_option_index + 1, j = 0; i < argc; i++, j++)
     {
-      auto result = pda.match(config.args[i]);
-      std::cout << "'" << config.args[i] << "': ";
+      auto string = argv[i];
+      auto result = pda.match(string);
+      std::cout << "'" << string << "': ";
       std::cout << (result ? "accepted" : "rejected") << '\n';
 
-      if (config.generate_automaton_steps)
+      if (config.automaton_steps_filepath)
         {
-          auto name = std::string{ config.automaton_steps_filepath } + std::to_string(i - 1);
-          pda.generate_automaton_steps_json(config.args[i], name.c_str());
+          auto name = std::string{ config.automaton_steps_filepath } + std::to_string(j);
+          pda.generate_automaton_steps_json(string, name.c_str());
         }
     }
 
